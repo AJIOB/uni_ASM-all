@@ -133,6 +133,7 @@ operateWithString PROC near
 	push ax
 	push bx
 	push cx
+	push dx
 	push si
 	push di
 
@@ -151,33 +152,63 @@ start_loop:
 skip_spaces:
 
 	;пропускаем один символ пробела
-	cmp [di], 20h	; space symbol ' '
+	cmp [si], 20h	; space symbol ' '
 
 	jne check_wordIsNum		;не пробел - значит символ (началось новое слово)
 
 	movsb
 	loop skip_spaces
 
-	jcxz end_loop
+	jmp end_loop
 
 check_wordIsNum:
-	mov bx, di 		;backup начала слова
+	mov dx, cx 		;backup счетчика
+	mov bx, si 		;backup начала слова source
 
-	cmp [di], 30h	;zero symbol '0'
-	jl wordIsNotNum
+loop_check_wordIsNum:
+	cmp [si], 30h	;zero symbol '0'
+	jl check_space
 
-	cmp [di], 39h	;nine symbol '9' 
-	jg wordIsNotNum
+	cmp [si], 39h	;nine symbol '9' 
+	jg check_space	;
+
+	inc si
+
+	loop loop_check_wordIsNum
 	
-	;loop start_loop
+	jmp wordIsNum 	;закончилась строка и не было выходов из цикла - значит в конце число
+
+check_space:
+	cmp [si], 20h	; space symbol ' '
+
+	jne wordIsNotNum	;не пробел и не цифра - значит это не число
+
+wordIsNum:
+	writeNewWord
+
+	jcxz end_loop		;дошли до конца строки - выход
+
+	jmp start_loop		;не дошли до конца строки
 
 wordIsNotNum:
-	
+	mov si, bx		;восстанавливаем позицию начала слова
+	mov cx, dx		;восстановить счетчик (как будто мы и не проверяли)
+
+loop_wordIsNotNum:
+	cmp [si], 20h	; space symbol ' '
+
+	je skip_spaces		;пробел - значит всё переписали
+
+	movsb
+	loop loop_wordIsNotNum
+
+	jmp end_loop
 
 end_loop:
 
 	pop di
 	pop si
+	pop dx
 	pop cx
 	pop bx
 	pop ax
