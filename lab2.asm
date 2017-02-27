@@ -7,6 +7,7 @@
 begin MACRO
 	mov ax, @data	;init
 	mov ds, ax
+	mov es, ax
 
 	xor ax, ax
 ENDM
@@ -81,6 +82,19 @@ input MACRO s;, len
 	pop dx
 	pop ax
 ENDM
+
+writeNewWord MACRO
+	push si
+	push cx
+
+	mov cx, 6
+	lea si, newWord
+
+	rep movsb
+
+	pop cx
+	pop si
+ENDM
 ;end macro help
 
 .model small
@@ -96,7 +110,7 @@ ENDM
 	textIn db 'Input text with numbers$'
 	textRes db 'Result$'
 
-	len equ 0
+	;len db 1
 .code
 
 main:
@@ -115,13 +129,57 @@ main:
 	endd
 
 ;procedure help
-operateWithString PROC
+operateWithString PROC near
 	push ax
+	push bx
 	push cx
+	push si
+	push di
 
-	;cx
+	cld		;очистка флага направления (двигаемся слева направо)
 
+	mov cx, [offset source + 1]
+
+	;начальная инициализация позиции начала source & destination строк
+	mov si, offset source + 2
+	mov di, offset destination
+
+	jcxz end_loop
+
+start_loop:
+	
+skip_spaces:
+
+	;пропускаем один символ пробела
+	cmp [di], 20h	; space symbol ' '
+
+	jne check_wordIsNum		;не пробел - значит символ (началось новое слово)
+
+	movsb
+	loop skip_spaces
+
+	jcxz end_loop
+
+check_wordIsNum:
+	mov bx, di 		;backup начала слова
+
+	cmp [di], 30h	;zero symbol '0'
+	jl wordIsNotNum
+
+	cmp [di], 39h	;nine symbol '9' 
+	jg wordIsNotNum
+	
+	;loop start_loop
+
+wordIsNotNum:
+	
+
+end_loop:
+
+	pop di
+	pop si
 	pop cx
+	pop bx
 	pop ax
 
 	ret
