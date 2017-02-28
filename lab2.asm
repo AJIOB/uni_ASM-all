@@ -4,6 +4,8 @@
 
 ;macro HELP
 
+
+
 begin MACRO
 	mov ax, @data	;init
 	mov ds, ax
@@ -65,12 +67,12 @@ ENDM
 
 ;s - string
 ;len - string max length
-input MACRO s;, len
+input MACRO s, leng
 	push ax
 	push dx
 
 	;помещаем длину строки в строку
-	mov s, 48
+	mov s, leng
 
 	;ввод строки
 	mov ax, 0A00h
@@ -95,6 +97,16 @@ writeNewWord MACRO
 	pop cx
 	pop si
 ENDM
+
+;compare [si] and second
+compareb MACRO second
+	push bx
+
+	mov bx, [si]
+	cmp bl, second
+
+	pop bx
+ENDM
 ;end macro help
 
 .model small
@@ -102,15 +114,15 @@ ENDM
 .stack 100h
 
 .data
-	stringSize equ 50
+	stringSize equ 200
 	newWord db 'number$'
 
 	source db stringSize dup('$')
-	destination db 2*stringSize dup('$')
+	destination db 6*stringSize dup('$')
 	textIn db 'Input text with numbers$'
 	textRes db 'Result$'
 
-	;len db 1
+	;len equ 48
 .code
 
 main:
@@ -118,7 +130,7 @@ main:
 
 	println textIn
 
-	input source
+	input source, stringSize-2
 
 	call operateWithString
 
@@ -139,7 +151,10 @@ operateWithString PROC near
 
 	cld		;очистка флага направления (двигаемся слева направо)
 
-	mov cx, [offset source + 1]
+	;инициализируем счетчик
+	mov bx, offset source
+	mov cl, [bx + 1]
+	mov ch, 00h
 
 	;начальная инициализация позиции начала source & destination строк
 	mov si, offset source + 2
@@ -152,7 +167,7 @@ start_loop:
 skip_spaces:
 
 	;пропускаем один символ пробела
-	cmp [si], 20h	; space symbol ' '
+	compareb 20h	; space symbol ' '
 
 	jne check_wordIsNum		;не пробел - значит символ (началось новое слово)
 
@@ -166,10 +181,10 @@ check_wordIsNum:
 	mov bx, si 		;backup начала слова source
 
 loop_check_wordIsNum:
-	cmp [si], 30h	;zero symbol '0'
+	compareb 30h	;zero symbol '0'
 	jl check_space
 
-	cmp [si], 39h	;nine symbol '9' 
+	compareb 39h	;nine symbol '9' 
 	jg check_space	;
 
 	inc si
@@ -179,7 +194,7 @@ loop_check_wordIsNum:
 	jmp wordIsNum 	;закончилась строка и не было выходов из цикла - значит в конце число
 
 check_space:
-	cmp [si], 20h	; space symbol ' '
+	compareb 20h	; space symbol ' '
 
 	jne wordIsNotNum	;не пробел и не цифра - значит это не число
 
@@ -195,7 +210,7 @@ wordIsNotNum:
 	mov cx, dx		;восстановить счетчик (как будто мы и не проверяли)
 
 loop_wordIsNotNum:
-	cmp [si], 20h	; space symbol ' '
+	compareb 20h	; space symbol ' '
 
 	je skip_spaces		;пробел - значит всё переписали
 
