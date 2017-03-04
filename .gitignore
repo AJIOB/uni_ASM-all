@@ -1,4 +1,10 @@
+#Compiled files
 *.exe
 *.map
 *.obj
 *.com
+
+#Useless files & folders
+*al
+Sample*
+test*
