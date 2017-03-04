@@ -2,7 +2,6 @@
 
 
 ;macro HELP
-
 begin MACRO
 	mov ax, @data	;init
 	mov ds, ax
@@ -12,14 +11,39 @@ begin MACRO
 ENDM
 
 endd MACRO
-	mov ax, 4c00h
+	mov ah, 4ch
+	int 21h
+ENDM
+
+inSym MACRO
+	mov ah, 01h
+	int 21h
+ENDM
+
+printSym MACRO info
+	mov ah, 02h
+	mov dx, info
 	int 21h
 ENDM
 
 newline MACRO
 	push ax
+    push dx
+    printSym 0Ah
+    printSym 0Dh
+    pop dx
+    pop ax
+ENDM
+
+println MACRO info
+	push ax
 	push dx
 
+	mov ah, 09h
+	mov dx, offset info
+	int 21h
+
+	;print new line
 	mov dl, 10
 	mov ah, 02h
 	int 21h
@@ -32,58 +56,12 @@ newline MACRO
 	pop ax
 ENDM
 
-print MACRO info
-	push ax
-	push dx
-
-	;newline
-
-	mov ah, 09h
-	mov dx, offset info
+printSpace MACRO
+	mov ah, 02h
+	mov dl, 20h
 	int 21h
-
-	pop dx
-	pop ax
 ENDM
 
-println MACRO info
-	push ax
-	push dx
-
-	;newline
-
-	mov ah, 09h
-	mov dx, offset info
-	int 21h
-
-	newline
-
-	pop dx
-	pop ax
-ENDM
-
-writeNewWord MACRO
-	push si
-	push cx
-
-	mov cx, 6
-	lea si, newWord
-
-	rep movsb
-
-	pop cx
-	pop si
-ENDM
-
-;compare [si] and second
-compareb MACRO second
-	push bx
-
-	mov bx, [si]
-	cmp bl, second
-
-	pop bx
-ENDM
 ;end macro help
 
 .model small
@@ -91,162 +69,254 @@ ENDM
 .stack 100h
 
 .data
-	stringSize equ 200
-	newWord db 'number$'
+	y equ 2;5
+	x equ 3;6
+	oneElemSize equ 2
 
-	source db stringSize dup('$')
-	destination db 6*stringSize dup('$')
-	textIn db 'Input text with numbers$'
-	textRes db 'Result$'
+	textIn db 'Input number$'
+	textWordIsNotNum db 10,13,'Word is not number$'
+	textNumOverflow db 10,13,'Number is so high/low$'
+	textOriginal db 'Original matrix:$'
+	
+	matrix dw x*y dup(0)
+	res dw x dup(0001h)
 
-	;len equ 48
+	textRes db 'Result:$'
 .code
 
 main:
 	begin
 
+	mov cx, x*y
+
+	mov bx, offset matrix
+
+	;jcxz to_close
+
+inputLoop:
+
 	println textIn
 
-	inputNumber source, stringSize-2
+	call inputNumber
 
-	call operateWithString
+	cmp dx, 0
+	je goodInput
 
+;badInput:
+	jmp inputLoop	
+
+
+goodInput:
+	mov word ptr [bx], ax
+	add bx, oneElemSize
+
+	loop inputLoop
+
+;printOriginal:
+	println textOriginal
+
+	xor bx, bx	;номер строки
+	mov cx, y
+
+printOrigL1:
+	push cx
+
+	xor si, si 	;позиция в строке
+
+	mov cx, x	
+printOrigL2:
+	mov ax, matrix [bx + si]
+
+	call printNum	;show
+	printSpace
+
+	mov ax, matrix [bx + si]	;calculating
+	imul res[si]
+	jno noOverFlow
+
+	mov ax, 0		;overflow - write 0
+
+noOverFlow:
+	mov res[si], ax	;writing results
+	
+	add si, oneElemSize
+
+	loop printOrigL2
+
+	newline
+	add bx, oneElemSize*x
+	pop cx
+	loop printOrigL1
+
+
+;printRes:
 	println textRes
 
-	println destination
+	mov bx, offset res
+	mov cx, x
+
+printLoop:
+	mov ax, word ptr[bx]
+	call printNum
+
+	printSpace
+	
+	add bx, oneElemSize
+
+	loop printLoop
+	
+to_close:
 
 	endd
 
 ;procedure help
-operateWithString PROC near
-	push ax
+
+;result in ax
+;dx will be:
+;	0, if all is good
+;	1, if is not digit 
+;	2, if we have overflow
+inputNumber PROC
 	push bx
-	push cx
-	push dx
-	push si
-	push di
 
-	cld		;очистка флага направления (двигаемся слева направо)
-
-	;инициализируем счетчик
-	mov bx, offset source
-	mov cl, [bx + 1]
-	mov ch, 00h
-
-	;начальная инициализация позиции начала source & destination строк
-	mov si, offset source + 2
-	mov di, offset destination
-
-	jcxz end_loop
-
-start_loop:
+	xor bx, bx
 	
-skip_spaces:
-
-	;пропускаем один символ пробела
-	compareb 20h	; space symbol ' '
-
-	jne check_wordIsNum		;не пробел - значит символ (началось новое слово)
-
-	movsb
-	loop skip_spaces
-
-	jmp end_loop
-
-check_wordIsNum:
-	mov dx, cx 		;backup счетчика
-	mov bx, si 		;backup начала слова source
-
-loop_check_wordIsNum:
-	compareb 30h	;zero symbol '0'
-	jl check_space
-
-	compareb 39h	;nine symbol '9' 
-	jg check_space	;
-
-	inc si
-
-	loop loop_check_wordIsNum
-	
-	jmp wordIsNum 	;закончилась строка и не было выходов из цикла - значит в конце число
-
-check_space:
-	compareb 20h	; space symbol ' '
-
-	jne wordIsNotNum	;не пробел и не цифра - значит это не число
-
-wordIsNum:
-	writeNewWord
-
-	jcxz end_loop		;дошли до конца строки - выход
-
-	jmp start_loop		;не дошли до конца строки
-
-wordIsNotNum:
-	mov si, bx		;восстанавливаем позицию начала слова
-	mov cx, dx		;восстановить счетчик (как будто мы и не проверяли)
-
-loop_wordIsNotNum:
-	compareb 20h	; space symbol ' '
-
-	je skip_spaces		;пробел - значит всё переписали
-
-	movsb
-	loop loop_wordIsNotNum
-
-	jmp end_loop
-
-end_loop:
-
-	pop di
-	pop si
-	pop dx
-	pop cx
-	pop bx
-	pop ax
-
-	ret
-ENDP
-
-inSym MACRO
-	mov ah, 01h
-	int 21h
-ENDM
-
-;result in al
-;dx - accumulator
-inputNumber PROC USES dx
-	
-
-	;inSym 
-
 checkSign:
 	;TODO
+	inSym
+	cmp al, 2dh		;'-'
+	je minus
+
+	cmp al, 2bh		;'+'
+	jne notSign
+
+;plus:
+	inSym
+
+notSign:
+	mov dx, 0001h
+	push dx
+	jmp next
+
+minus:
+	mov dx, -1
+	push dx
+	inSym
+
+next:
+	mov dx, 0000h
+	push dx
 
 	xor dx, dx
 
 checkDigit:
 	
+	cmp al, 13		;'\n'
+	je endlineIsInput
+
 	;проверка на не цифру
 	cmp al, 30h		;'0'
 	jl pErrorNotDigit
 	cmp al, 39h		;'9'
 	jg pErrorNotDigit
 
-	xor ah, ah
+	mov bl, al 		;сохраняем введенную цифру
+	sub bl, 30h
 
-	add dx, ax
+	;добавление цифры
+	pop ax
+	mov dx, 10
+	mul dx
+	add ax, bx
+	push ax
 
-	cmp ah, 0		;chech for overflow
-	je pErrorOverflow
+	mov bl, 80h			;chech for overflow
+	and bl, ah
+	cmp bl, 0
+	jne pErrorOverflow
+
+	inSym
+	jmp checkDigit
+
+endlineIsInput:
+	;todo
+	pop ax		;number
+	pop bx		;sign
+	imul bx
+
+	xor dx, dx	;mov dx, 0
+	jmp endOfProc
 
 pErrorNotDigit:
-	;TODO
+	println textWordIsNotNum
+	mov dx, 1
+
+	jmp badEnd
 	
-end:
-	mov al, dl
-	
+pErrorOverflow:
+	println textNumOverflow
+	mov dx, 2
+
+badEnd:
+	pop ax	;number
+	pop ax	;sign
+	xor ax, ax
+
+endOfProc:
+
+	pop bx
+
+	ret
 ENDP
+
+;input number in ax
+printNum PROC
+	push ax
+	push bx
+	push cx
+	push dx
+
+	xor cx, cx
+	xor dx, dx
+	cmp ax, 0
+	jge noSign
+
+	push ax
+	printSym '-'
+	pop ax
+	mov dx, -1
+	imul dx
+	xor dx, dx
+
+noSign:
+	mov bx, 10
+	div bx		;ax - результат, dx - остаток
+
+	add dx, 30h	;'0'
+	push dx		;будем хранить в стеке то, что выводить
+	xor dx, dx
+
+	inc cx
+
+	cmp ax, 0
+	jne noSign
+
+	jcxz printResultEnd
+
+printResult:
+	pop dx
+	printSym dx
+	loop printResult
+
+printResultEnd:
+	
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
+ENDP
+
 ;end procedure help
 
 end main
