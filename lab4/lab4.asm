@@ -161,6 +161,7 @@ CalcOffsetByPoint PROC
 	mov bx, ax
 
 	pop dx ax
+	ret
 ENDP
 
 ;change snake body in array
@@ -199,6 +200,7 @@ MoveSnake PROC
 	;все тело в памяти сдвинуто
 
 	pop es di si cx bx ax
+	ret
 ENDP
 
 mainGame PROC
