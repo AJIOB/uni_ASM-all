@@ -125,7 +125,7 @@ to_close:
 ;ZF = 1 - buffer is free
 ;AH = scan-code
 CheckBuffer MACRO
-	mov ax, 11h
+	mov ah, 11h
 	int 16h
 ENDM
 
@@ -180,6 +180,7 @@ MoveSnake PROC
 	mov si, di
 	sub si, PointSize 			;si - адрес последнего элемента массива
 
+	push di
 	;удалить конец змейки с экрана
 	mov es, videoStart
 	mov bx, ds:[si]
@@ -187,6 +188,8 @@ MoveSnake PROC
 	mov di, bx			;установили память, куда будем писать пробел
 	mov ax, space
 	stosw
+
+	pop di
 
 	mov es, dataStart	;для работы с данными
 	std				;идем от конца к началу
@@ -272,7 +275,9 @@ PortalLeftRight:
 	;todo
 	jmp endLoop
 GoNext:
-	mov di, snakeBody		;вывести новое начало змейки
+	mov bx, snakeBody		;вывести новое начало змейки
+	call CalcOffsetByPoint
+	mov di, bx
 	mov ax, snakeBodySymbol
 	stosw
 
