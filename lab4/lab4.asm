@@ -122,26 +122,6 @@ to_close:
 
 ;more macro help
 
-;get pos as (bh + (bl * xSize))*oneMemoBlock
-;input: point (x,y) in bx
-;output: offser in bx
-CalcOffsetByPoint MACRO
-	push ax dx
-	
-	xor ah, ah
-	mov al, bl
-	mov dl, xSize
-	mul dl
-	mov dl, bh
-	xor dh, dh
-	add ax, dx
-	mov dx, oneMemoBlock	;длину каждого блока
-	mul dx
-	mov bx, ax
-
-	pop dx ax
-ENDM
-
 ;ZF = 1 - buffer is free
 ;AH = scan-code
 CheckBuffer MACRO
@@ -163,54 +143,46 @@ initField PROC
 	ret
 ENDP
 
-mainGame PROC
-;load base snake
-	push ax bx cx dx ds es
-
-	xor ch, ch
-	mov cl, snakeSize
-	mov si, offset snakeBody
-
-loopInitSnake:
-	mov bx, [si]
-	add si, PointSize
+;get pos as (bh + (bl * xSize))*oneMemoBlock
+;input: point (x,y) in bx
+;output: offser in bx
+CalcOffsetByPoint PROC
+	push ax dx
 	
-	;get pos as (bh + (bl * xSize))*oneMemoBlock
-	CalcOffsetByPoint
+	xor ah, ah
+	mov al, bl
+	mov dl, xSize
+	mul dl
+	mov dl, bh
+	xor dh, dh
+	add ax, dx
+	mov dx, oneMemoBlock	;длину каждого блока
+	mul dx
+	mov bx, ax
 
-	mov di, bx
+	pop dx ax
+ENDP
 
-	mov ax, snakeBodySymbol
-	stosw
-	loop loopInitSnake
+;change snake body in array
+;old last element is always saved
+;delete old last element from screen
+MoveSnake PROC
+	push ax bx cx si di es
 
-
-
-checkAndMoveLoop:
-	
-	CheckBuffer
-	jz noSymbolInBuff
-
-	;exit
-	cmp ah, KExit
-	je endLoop_relink
-
-noSymbolInBuff:
-
-;MoveSnake:
-	;сдвигаем все тело
-		
 	mov al, snakeSize
 	xor ah, ah 		;в ah - длина массива
 	mov cx, ax 		;cx - счетчик кол-ва сдвигов
+	mov bx, PointSize
+	mul bx			;теперь получим в ax реальную позицию в памяти относительно начала массива
 	mov di, offset snakeBody
 	add di, ax 		;di - адрес следующего после последнего элемента массива
 	mov si, di
-	dec si 			;si - адрес последнего элемента массива
+	sub si, PointSize 			;si - адрес последнего элемента массива
 
 	;удалить конец змейки с экрана
+	mov es, videoStart
 	mov bx, ds:[si]
-	CalcOffsetByPoint
+	call CalcOffsetByPoint
 	mov di, bx			;установили память, куда будем писать пробел
 	mov ax, space
 	stosw
@@ -226,7 +198,49 @@ noSymbolInBuff:
 	mov snakeBody, bx	;сохраняем новую позицию головы
 	;все тело в памяти сдвинуто
 
-	CalcOffsetByPoint
+	pop es di si cx bx ax
+ENDP
+
+mainGame PROC
+;load base snake
+	push ax bx cx dx ds es
+
+	xor ch, ch
+	mov cl, snakeSize
+	mov si, offset snakeBody
+
+loopInitSnake:
+	mov bx, [si]
+	add si, PointSize
+	
+	;get pos as (bh + (bl * xSize))*oneMemoBlock
+	call CalcOffsetByPoint
+
+	mov di, bx
+
+	mov ax, snakeBodySymbol
+	stosw
+	loop loopInitSnake
+
+checkAndMoveLoop:
+	
+	CheckBuffer
+	jz noSymbolInBuff
+
+	;exit
+	cmp ah, KExit
+	je endLoop_relink
+
+noSymbolInBuff:
+
+;MoveSnake:
+	;сдвигаем все тело
+	call MoveSnake
+
+	mov bx, snakeBody 		;в bx точка головы змеи
+	call CalcOffsetByPoint	;в bx смещение в памяти, соответствующее точке
+
+	mov es, videoStart
 	mov ax, es:[bx]		;в ax текущий символ в памяти es:bx (куда должна стать змейка)
 
 	cmp ax, appleSymbol
@@ -245,7 +259,7 @@ noSymbolInBuff:
 
 endLoop_relink:
 	jmp endLoop
-	
+
 AppleIsNext:
 	;todo
 SnakeIsNext:
@@ -254,18 +268,15 @@ PortalUpDown:
 	;todo
 PortalLeftRight:
 	;todo
+	jmp endLoop
 GoNext:
-	
-	mov es, videoStart
-	mov di, bx		;вывести новое начало змейки
+	mov di, snakeBody		;вывести новое начало змейки
 	mov ax, snakeBodySymbol
 	stosw
 
-	;mov di, offset snakeBody + snakeSize
-
 	jmp checkAndMoveLoop
-endLoop:
 
+endLoop:
 	;todo
 	pop es ds dx cx bx ax
 	ret
