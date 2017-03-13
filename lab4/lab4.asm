@@ -38,12 +38,15 @@ oneMemoBlock equ 2
 
 videoStart dw 0B800h
 dataStart dw 0000h
+timeStart dw 0040h
+timePosition dw 006Ch
+
 space equ 0020h
 snakeBodySymbol equ 0A40h
 appleSymbol equ 0B0Fh
 VWallSymbol equ 0FBAh
 HWallSymbol equ 0FCDh
-
+VWallSpecialSymbol equ 0FCCh
 
 fieldSpacingBad equ space, VWallSymbol, xField dup(space)
 fieldSpacing equ fieldSpacingBad, VWallSymbol
@@ -97,7 +100,8 @@ backwardVal equ 0FFh
 Bmoveright db 01h
 Bmovedown db 00h
 
-waitTime db 10h
+waitTime dw 1
+deltaTime equ 2
 
 .code
 
@@ -132,6 +136,16 @@ ENDM
 ReadFromBuffer MACRO
 	mov ah, 00h
 	int 16h
+ENDM
+
+;result in cx:dx
+GetTimerValue MACRO
+	push ax 
+
+	mov ax, 00h
+	int 1Ah
+
+	pop ax
 ENDM
 
 ;end macro help
@@ -240,8 +254,11 @@ checkAndMoveLoop:
 	ReadFromBuffer
 
 	cmp ah, KExit		;exit key is pressed
-	je endLoop_relink
+	jne skipJmp
 
+	jmp far ptr endLoop
+
+skipJmp:
 	cmp ah, KMoveLeft	;move left key is pressed
 	je setMoveLeft
 
@@ -253,6 +270,12 @@ checkAndMoveLoop:
 
 	cmp ah, KMoveDown	;move down key is pressed
 	je setMoveDown
+
+	cmp ah, KUpSpeed		;move up key is pressed
+	je setSpeedUp
+
+	cmp ah, KDownSpeed	;move down key is pressed
+	je setSpeedDown
 
 	jmp noSymbolInBuff
 
@@ -275,6 +298,11 @@ setMoveDown:
 	mov Bmoveright, stopVal
 	mov Bmovedown, forwardVal
 	jmp noSymbolInBuff
+
+setSpeedUp:
+	;todo
+setSpeedDown:
+	;todo
 
 noSymbolInBuff:
 	;сдвигаем все тело
@@ -299,10 +327,10 @@ checkSymbolAgain:
 	cmp ax, VWallSymbol
 	je PortalLeftRight
 
-	jmp GoNext
+	cmp ax, VWallSpecialSymbol
+	je PortalLeftRight
 
-endLoop_relink:
-	jmp endLoop
+	jmp GoNext
 
 AppleIsNext:
 	;todo
@@ -339,11 +367,30 @@ GoNext:
 	mov ax, snakeBodySymbol
 	stosw
 
+	call Sleep
+
 	jmp checkAndMoveLoop
 
 endLoop:
 	;todo
 	pop es ds dx cx bx ax
+	ret
+ENDP
+
+Sleep PROC
+	push ax bx cx dx
+
+	GetTimerValue
+
+	add dx, waitTime
+	mov bx, dx
+
+checkTimeLoop:
+	GetTimerValue
+	cmp dx, bx			;ax - current value, bx - needed value
+	jl checkTimeLoop
+
+	pop dx cx bx ax
 	ret
 ENDP
 
