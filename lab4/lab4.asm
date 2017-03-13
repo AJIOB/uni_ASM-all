@@ -72,7 +72,7 @@ secondF	dw fieldSpacing, xSize - xField - 5 dup(ylSpc), VWallSymbol, space
 	score	dw 4 dup(06F30h), 13 dup(ylSpc), VWallSymbol, space
 		dw fieldSpacing, xSize - xField - 5 dup(ylSpc), VWallSymbol, space
 		dw fieldSpacing, ylSpc, 06F53h, 06F70h, 2 dup(06F65h), 06F64h, 06F3Ah, ylSpc
-	speed	dw 06F30h, 16 dup(ylSpc), VWallSymbol, space
+	speed	dw 06F31h, 16 dup(ylSpc), VWallSymbol, space
 		dw fieldSpacing, xSize - xField - 5 dup(ylSpc), VWallSymbol, space
 delim2	dw fieldSpacingBad, 0FCCh, xSize - xField - 5 dup(HWallSymbol), 0FB9h, space
 thirdF	dw fieldSpacing, xSize - xField - 5 dup(grSpc), VWallSymbol, space
@@ -100,7 +100,9 @@ backwardVal equ 0FFh
 Bmoveright db 01h
 Bmovedown db 00h
 
-waitTime dw 1
+minWaitTime equ 1
+maxWaitTime equ 9
+waitTime dw maxWaitTime
 deltaTime equ 2
 
 .code
@@ -249,8 +251,10 @@ loopInitSnake:
 checkAndMoveLoop:
 	
 	CheckBuffer
-	jz noSymbolInBuff
+	jnz skipJmp2
+	jmp far ptr noSymbolInBuff
 
+skipJmp2:
 	ReadFromBuffer
 
 	cmp ah, KExit		;exit key is pressed
@@ -300,9 +304,36 @@ setMoveDown:
 	jmp noSymbolInBuff
 
 setSpeedUp:
-	;todo
+	mov ax, waitTime
+	cmp ax, minWaitTime
+	je noSymbolInBuff			;нельзя больше уменьшать время задержки
+	
+	sub ax, deltaTime
+	mov waitTime, ax 			;записали новое значение скорости
+
+	mov es, videoStart
+	mov di, offset speed - offset screen	;получаем смещение символа скорости
+	mov ax, es:[di]
+	inc ax
+	mov es:[di], ax
+
+	jmp noSymbolInBuff
+
 setSpeedDown:
-	;todo
+	mov ax, waitTime
+	cmp ax, maxWaitTime
+	je noSymbolInBuff			;нельзя больше увеличивать время задержки
+	
+	add ax, deltaTime
+	mov waitTime, ax 			;записали новое значение скорости
+
+	mov es, videoStart
+	mov di, offset speed - offset screen	;получаем смещение символа скорости
+	mov ax, es:[di]
+	dec ax
+	mov es:[di], ax
+
+	jmp noSymbolInBuff
 
 noSymbolInBuff:
 	;сдвигаем все тело
