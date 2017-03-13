@@ -243,6 +243,7 @@ noSymbolInBuff:
 	call MoveSnake
 
 	mov bx, snakeBody 		;в bx точка головы змеи
+checkSymbolAgain:
 	call CalcOffsetByPoint	;в bx смещение в памяти, соответствующее точке
 
 	mov es, videoStart
@@ -269,11 +270,30 @@ AppleIsNext:
 	;todo
 SnakeIsNext:
 	;todo
-PortalUpDown:
-	;todo
-PortalLeftRight:
-	;todo
 	jmp endLoop
+PortalUpDown:
+	mov bx, snakeBody
+	sub bl, yField
+	cmp bl, 0		;верхняя или нижняя граница
+	jg writeNewHeadPos
+
+	;елси мы тут, следовательно это была верхняя стена
+	add bl, yField*2
+
+writeNewHeadPos:
+	mov snakeBody, bx		;записываем новое значение головы
+	jmp checkSymbolAgain	;и отправляем его заново на сравнение
+
+PortalLeftRight:
+	mov bx, snakeBody
+	sub bh, xField
+	cmp bh, 0		;левая или правая граница
+	jg writeNewHeadPos
+
+	;елси мы тут, следовательно это была верхняя стена
+	add bh, xField*2
+	jmp writeNewHeadPos
+
 GoNext:
 	mov bx, snakeBody		;вывести новое начало змейки
 	call CalcOffsetByPoint
