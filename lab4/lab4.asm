@@ -372,6 +372,7 @@ AppleIsNext:
 	call incScore
 	jmp GoNextIteration
 SnakeIsNext:
+	call incSnake
 	jmp endLoop
 PortalUpDown:
 	mov bx, snakeBody
@@ -471,8 +472,32 @@ ENDP
 
 ;save tail of snake if no overloading
 incSnake PROC
-	;todo
+	push ax bx di es
 
+	mov al, snakeSize
+	cmp al, snakeMaxSize
+	je return
+
+	;увеличиваем длину змейки
+	inc al
+	mov snakeSize, al
+
+	;восстанасливаем конец
+	mov bl, PointSize
+	mul bl 				; получили в ax нужное для восстановления смещение в массиве
+
+	mov di, offset snakeBody
+	add di, ax 			;di указывает на точку для "восстановления"
+
+	mov es, dataStart
+	mov bx, es:[di]
+	call CalcOffsetByPoint		;получили реальное смещение для восстановления
+
+	mov es, videoStart
+	mov es:[bx], snakeBodySymbol
+	
+return:
+	pop es di bx ax
 	ret
 ENDP
 
