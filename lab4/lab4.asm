@@ -117,7 +117,7 @@ main:
 
 	clearScreen
 
-	call initField
+	call initAllScreen
 
 	call mainGame
 
@@ -154,12 +154,33 @@ ENDM
 
 ;procedure help
 
-initField PROC
+initAllScreen PROC
 	mov si, offset screen
 	xor di, di
 
 	mov cx, xSize*ySize
 	rep movsw
+
+	;load base snake
+
+	xor ch, ch
+	mov cl, snakeSize
+	mov si, offset snakeBody
+
+loopInitSnake:
+	mov bx, [si]
+	add si, PointSize
+	
+	;get pos as (bh + (bl * xSize))*oneMemoBlock
+	call CalcOffsetByPoint
+
+	mov di, bx
+
+	mov ax, snakeBodySymbol
+	stosw
+	loop loopInitSnake
+
+	call GenerateRandomApple
 
 	ret
 ENDP
@@ -228,25 +249,7 @@ MoveSnake PROC
 ENDP
 
 mainGame PROC
-;load base snake
 	push ax bx cx dx ds es
-
-	xor ch, ch
-	mov cl, snakeSize
-	mov si, offset snakeBody
-
-loopInitSnake:
-	mov bx, [si]
-	add si, PointSize
-	
-	;get pos as (bh + (bl * xSize))*oneMemoBlock
-	call CalcOffsetByPoint
-
-	mov di, bx
-
-	mov ax, snakeBodySymbol
-	stosw
-	loop loopInitSnake
 
 checkAndMoveLoop:
 	
@@ -361,12 +364,14 @@ checkSymbolAgain:
 	cmp ax, VWallSpecialSymbol
 	je PortalLeftRight
 
-	jmp GoNext
+	jmp GoNextIteration
 
 AppleIsNext:
-	;todo
+	call incSnake
+	call GenerateRandomApple
+	call incScore
+	jmp GoNextIteration
 SnakeIsNext:
-	;todo
 	jmp endLoop
 PortalUpDown:
 	mov bx, snakeBody
@@ -391,7 +396,7 @@ PortalLeftRight:
 	add bh, xField*2
 	jmp writeNewHeadPos
 
-GoNext:
+GoNextIteration:
 	mov bx, snakeBody		;вывести новое начало змейки
 	call CalcOffsetByPoint
 	mov di, bx
@@ -403,7 +408,7 @@ GoNext:
 	jmp checkAndMoveLoop
 
 endLoop:
-	;todo
+	;todo: end logo
 	pop es ds dx cx bx ax
 	ret
 ENDP
@@ -422,6 +427,58 @@ checkTimeLoop:
 	jl checkTimeLoop
 
 	pop dx cx bx ax
+	ret
+ENDP
+
+GenerateRandomApple PROC
+	push ax bx cx dx es
+	
+loop_random:
+	;считываем текущее время
+	;ch - час, cl - минута, dh - секунда, dl - сотая доля секунды
+	mov ah, 2Ch
+	int 21h
+
+	mov al, dl
+	mul dh 				;в ax теперь число для рандома
+
+	xor dx, dx			;чтобы не словить переполнение и получить хороший результат
+	mov cx, xField
+	div cx				;в dx - результат (позиция по x); в ax - еще число
+	add dx, 2			;добавляем смещение от начала оси
+	mov bh, dl 			;сохранили координату x
+
+	xor dx, dx
+	mov cx, yField
+	div cx
+	add dx, 2			;позиция по y
+
+	mov bl, dl 			;сохранили координату y. Теперь в bx координата яблока
+
+	call CalcOffsetByPoint
+	mov es, videoStart
+	mov ax, es:[bx]
+
+	cmp ax, space
+	jne loop_random		;если там всё-таки не пробел - попытаем счастье еще разок
+
+	mov ax, appleSymbol
+	mov es:[bx], ax
+
+	pop es dx cx bx ax
+	ret
+ENDP
+
+;save tail of snake if no overloading
+incSnake PROC
+	;todo
+
+	ret
+ENDP
+
+incScore PROC
+	;todo
+
 	ret
 ENDP
 
