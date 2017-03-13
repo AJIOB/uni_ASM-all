@@ -125,7 +125,12 @@ to_close:
 ;ZF = 1 - buffer is free
 ;AH = scan-code
 CheckBuffer MACRO
-	mov ah, 11h
+	mov ah, 01h
+	int 16h
+ENDM
+
+ReadFromBuffer MACRO
+	mov ah, 00h
 	int 16h
 ENDM
 
@@ -232,13 +237,46 @@ checkAndMoveLoop:
 	CheckBuffer
 	jz noSymbolInBuff
 
-	;exit
-	cmp ah, KExit
+	ReadFromBuffer
+
+	cmp ah, KExit		;exit key is pressed
 	je endLoop_relink
 
-noSymbolInBuff:
+	cmp ah, KMoveLeft	;move left key is pressed
+	je setMoveLeft
 
-;MoveSnake:
+	cmp ah, KMoveRight	;move right key is pressed
+	je setMoveRight
+
+	cmp ah, KMoveUp		;move up key is pressed
+	je setMoveUp
+
+	cmp ah, KMoveDown	;move down key is pressed
+	je setMoveDown
+
+	jmp noSymbolInBuff
+
+setMoveLeft:
+	mov Bmoveright, backwardVal
+	mov Bmovedown, stopVal
+	jmp noSymbolInBuff
+
+setMoveRight:
+	mov Bmoveright, forwardVal
+	mov Bmovedown, stopVal
+	jmp noSymbolInBuff
+
+setMoveUp:
+	mov Bmoveright, stopVal
+	mov Bmovedown, backwardVal
+	jmp noSymbolInBuff
+
+setMoveDown:
+	mov Bmoveright, stopVal
+	mov Bmovedown, forwardVal
+	jmp noSymbolInBuff
+
+noSymbolInBuff:
 	;сдвигаем все тело
 	call MoveSnake
 
