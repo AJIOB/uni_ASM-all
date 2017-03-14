@@ -35,6 +35,7 @@ ySize equ 25
 xField equ 50
 yField equ 21
 oneMemoBlock equ 2
+scoreSize equ 4
 
 videoStart dw 0B800h
 dataStart dw 0000h
@@ -69,7 +70,7 @@ firstBl	dw fieldSpacing, xSize - xField - 5 dup(rbSpc), VWallSymbol, space
 delim1	dw fieldSpacingBad, 0FCCh, xSize - xField - 5 dup(HWallSymbol), 0FB9h, space
 secondF	dw fieldSpacing, xSize - xField - 5 dup(ylSpc), VWallSymbol, space
 		dw fieldSpacing, ylSpc, 06F53h, 06F63h, 06F6Fh, 06F72h, 06F65h, 06F3Ah, ylSpc
-	score	dw 4 dup(06F30h), 13 dup(ylSpc), VWallSymbol, space
+	score	dw scoreSize dup(06F30h), xSize - xField - scoreSize - 13 dup(ylSpc), VWallSymbol, space
 		dw fieldSpacing, xSize - xField - 5 dup(ylSpc), VWallSymbol, space
 		dw fieldSpacing, ylSpc, 06F53h, 06F70h, 2 dup(06F65h), 06F64h, 06F3Ah, ylSpc
 	speed	dw 06F31h, 16 dup(ylSpc), VWallSymbol, space
@@ -503,8 +504,29 @@ return:
 ENDP
 
 incScore PROC
-	;todo
+	push ax es si di
+	mov es, videoStart
+	mov cx, scoreSize 					;max pos value
+	mov di, offset score + (scoreSize - 1)*oneMemoBlock - offset screen	;получаем смещение последнего символа счета
 
+loop_score:	
+	mov ax, es:[di]
+	cmp al, 39h			;'9' symbol
+	jne nineNotNow
+	
+	sub al, 9			;ставим '0'
+	mov es:[di], ax
+
+	sub di, oneMemoBlock	;return to symbol back
+
+	loop loop_score
+	jmp return_incScore
+
+nineNotNow:
+	inc ax
+	mov es:[di], ax
+return_incScore:
+	pop di si es ax
 	ret
 ENDP
 
