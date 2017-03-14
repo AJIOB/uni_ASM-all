@@ -478,9 +478,10 @@ incSnake PROC
 	cmp al, snakeMaxSize
 	je return
 
-	;увеличиваем длину змейки
+	;увеличиваем длину змейки в массиве
 	inc al
 	mov snakeSize, al
+	dec al 				;нам для дальнейшей работы удобнее старая длина змейки
 
 	;восстанасливаем конец
 	mov bl, PointSize
