@@ -42,8 +42,9 @@ destID dw 0
 maxWordSize equ 50
 buffer db maxWordSize + 2 dup(0)
 
-delim equ ' '
+spaceSymbol equ ' '
 newLineSymbol equ 13
+returnSymbol equ 10
 tabulation equ 9
 
 ASCIIZendl equ 0
@@ -55,6 +56,9 @@ fileNotFoundText db "File not found", '$'
 errorClosingSource db "Cannot close source file", '$'
 errorClosingDest db "Cannot close destination file", '$'
 endText db "Program is ended", '$'
+
+period equ 2
+currWordIndex db 0
 
 .code
 
@@ -132,20 +136,20 @@ parseCMD PROC
 
 	mov si, offset cmd_text
 	mov di, offset buffer
-	call readWord
+	call rewriteAsASCIIZWord
 
 	mov di, offset sourcePath
-	call readWord
+	call rewriteAsASCIIZWord
 
 	cmpWordLenWith0 sourcePath, badCMDArgs
 
 	mov di, offset destinationPath
-	call readWord
+	call rewriteAsASCIIZWord
 
 	cmpWordLenWith0 destinationPath, badCMDArgs
 
 	mov di, offset buffer
-	call readWord
+	call rewriteAsASCIIZWord
 
 	cmpWordLenWith0 buffer, argsIsGood
 
@@ -187,18 +191,21 @@ ENDP
 ;es:di - offset, where word will be
 ;cx - maximum size of word (input)
 ;result will be ASCIIZ
-readWord PROC
+rewriteAsASCIIZWord PROC
 	push ax cx di
 	
 loopParseWord:
 	mov al, ds:[si]
-	cmp al, delim
+	cmp al, spaceSymbol
 	je isStoppedSymbol
 
 	cmp al, newLineSymbol
 	je isStoppedSymbol
 
 	cmp al, tabulation
+	je isStoppedSymbol
+
+	cmp al, returnSymbol
 	je isStoppedSymbol
 
 	cmp al, ASCIIZendl
@@ -273,6 +280,9 @@ processingFile PROC
 	resetPosInFileToStart
 	
 	;TODO
+	;write spaceSymbols
+	;skip/write word
+	;loop
 
 	pop di si dx cx bx ax
 	ret
@@ -307,6 +317,101 @@ goodCloseOfDest:
 	mov ax, cx 		;save number of errors
 
 	pop cx bx
+	ret
+ENDP
+
+;ds:si - offset to byte source (will change)
+;es:di - offset to byte destination (will change)
+;cx - max length (will change)
+writeDelims PROC
+	push ax
+
+startWriteDelimsLoop:
+	mov al, ds:[si]
+	cmp al, spaceSymbol
+	je isDelim
+
+	cmp al, tabulation
+	je isDelim
+
+	cmp al, newLineSymbol
+	je isDelim
+
+	cmp al, returnSymbol
+	je isDelim
+
+	jmp isNotDelim
+
+isDelim:
+	movsb
+	
+	loop startWriteDelimsLoop
+
+isNotDelim:
+	pop ax
+	ret
+ENDP
+
+;ds:si - offset, where we will find (will change)
+;es:di - offset, where word will be (will change)
+;cx - maximum size of word (will change)
+writeWord PROC
+	push ax 
+	
+loopParseWordWW:
+	mov al, ds:[si]
+	cmp al, spaceSymbol
+	je isStoppedSymbolWW
+
+	cmp al, newLineSymbol
+	je isStoppedSymbolWW
+
+	cmp al, tabulation
+	je isStoppedSymbolWW
+
+	cmp al, returnSymbol
+	je isStoppedSymbolWW
+
+	cmp al, ASCIIZendl
+	je isStoppedSymbolWW
+
+	movsb
+
+	loop loopParseWordWW
+
+isStoppedSymbolWW:
+	pop ax
+	ret
+ENDP
+
+;ds:si - offset, where we will find (will change)
+;cx - maximum size of word (will change)
+skipWord PROC
+	push ax
+	
+loopParseWordSW:
+	mov al, ds:[si]
+	cmp al, spaceSymbol
+	je isStoppedSymbolSW
+
+	cmp al, newLineSymbol
+	je isStoppedSymbolSW
+
+	cmp al, tabulation
+	je isStoppedSymbolSW
+
+	cmp al, returnSymbol
+	je isStoppedSymbolSW
+
+	cmp al, ASCIIZendl
+	je isStoppedSymbolSW
+
+	inc si
+
+	loop loopParseWordSW
+
+isStoppedSymbolSW:
+	pop ax
 	ret
 ENDP
 
