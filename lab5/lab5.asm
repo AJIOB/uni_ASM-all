@@ -107,6 +107,19 @@ cmpWordLenWith0 MACRO textline, is0Marker
 	cmp ax, 0
 	je is0Marker
 ENDM
+
+;bx - ID файла
+resetPosInFileToStart MACRO
+	push ax bx cx dx
+
+	mov ah, 42h
+	xor al ,al 			;mov al, 0 - отсчет сначала
+	xor cx, cx
+	xor dx, dx			;на 0 байт относительно будет смещаться
+	int 21h
+
+	pop dx cx bx ax
+ENDM
 ;end macro help
 
 
@@ -251,7 +264,17 @@ endOpenProc:
 ENDP
 
 processingFile PROC
+	push ax bx cx dx si di
+
+	mov bx, sourceID
+	resetPosInFileToStart
+
+	mov bx, destID
+	resetPosInFileToStart
+	
 	;TODO
+
+	pop di si dx cx bx ax
 	ret
 ENDP
 
