@@ -1,5 +1,28 @@
 ;удалить в строках файла все нечетные слова
 
+;-------------------MACRO-----------------
+println MACRO info
+	push ax
+	push dx
+
+	mov ah, 09h
+	mov dx, offset info
+	int 21h
+
+	;print new line
+	mov dl, 10
+	mov ah, 02h
+	int 21h
+
+	mov dl, 13
+	mov ah, 02h
+	int 21h
+
+	pop dx
+	pop ax
+ENDM
+;-----------------end macro----------------
+
 ;Параметр 1: путь к исходному файлу
 ;Параметр 2: путь к результирующему файлу
 .model small
@@ -22,7 +45,11 @@ tabulation equ 9
 
 ASCIIZendl equ 0
 
-badCMDArgsMessage db "Bad command-line arguments. I want only 2 arguments: source path and destination path", 10, 13, '$'
+startText db "Program is started", '$'
+badCMDArgsMessage db "Bad command-line arguments. I want only 2 arguments: source path and destination path", '$'
+badSourceText db "Cannot open source file", '$'
+fileNotFoundText db "File not found", '$'
+endText db "Program is ended", '$'
 
 .code
 
@@ -41,6 +68,8 @@ main:
 
 	mov ds, ax
 
+	println startText
+
 	call parseCMD
 
 	cmp ax, 0
@@ -56,6 +85,8 @@ main:
 
 endMain:
 	;exit
+	println endText
+
 	mov ah, 4Ch
 	int 21h
 
@@ -98,9 +129,7 @@ parseCMD PROC
 	cmpWordLenWith0 buffer, argsIsGood
 
 badCMDArgs:
-	mov ah, 09h
-	mov dx, offset badCMDArgsMessage
-	int 21h
+	println badCMDArgsMessage
 	mov ax, 1
 
 	jmp endproc
@@ -170,8 +199,38 @@ isStoppedSymbol:
 	ret
 ENDP
 
+;Result in ax: 0 if all is good, else not
 openFiles PROC
+	push bx dx
 	;TODO
+
+	;open source
+	mov ah, 3Dh			;open source file
+	mov al, 31h			;readonly, block write
+	mov dx, offset sourcePath
+	mov cl, 01h
+	int 21h
+
+	jb badOpenSource	;works when cf = 1
+
+	;open destination
+	mov ah, 3Ch
+	mov cx, 00h
+	mov dx, offset destinationPath
+	int 21h
+
+	jb badOpenSource	;works when cf = 1
+	jmp endOpenProc		;all is good
+
+badOpenSource:
+	println badSourceText
+	cmp ax, 02h
+	jne endOpenProc
+
+	println fileNotFoundText
+
+endOpenProc:
+	pop dx bx
 	ret
 ENDP
 
