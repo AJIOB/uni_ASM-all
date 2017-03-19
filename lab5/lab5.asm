@@ -36,6 +36,9 @@ cmd_text db maxCMDSize + 2 dup(0)
 sourcePath db maxCMDSize + 2 dup('$')
 destinationPath db maxCMDSize + 2 dup('$')
 
+sourceID dw 0
+destID dw 0
+
 maxWordSize equ 50
 buffer db maxWordSize + 2 dup(0)
 
@@ -49,6 +52,8 @@ startText db "Program is started", '$'
 badCMDArgsMessage db "Bad command-line arguments. I want only 2 arguments: source path and destination path", '$'
 badSourceText db "Cannot open source file", '$'
 fileNotFoundText db "File not found", '$'
+errorClosingSource db "Cannot close source file", '$'
+errorClosingDest db "Cannot close destination file", '$'
 endText db "Program is ended", '$'
 
 .code
@@ -71,17 +76,20 @@ main:
 	println startText
 
 	call parseCMD
-
 	cmp ax, 0
 	jne endMain				;Какая-то ошибка - выход
 
 	call openFiles
-	call processingFile
-	call closeFiles
+	cmp ax, 0
+	jne endMain				;Какая-то ошибка - выход
 
-	;mov ah, 09h
-	;mov dx, offset destinationPath
-	;int 21h
+	call processingFile
+	cmp ax, 0
+	jne endMain				;Какая-то ошибка - выход
+
+	call closeFiles
+	cmp ax, 0
+	jne endMain				;Какая-то ошибка - выход
 
 endMain:
 	;exit
@@ -213,6 +221,8 @@ openFiles PROC
 
 	jb badOpenSource	;works when cf = 1
 
+	mov sourceID, ax	;save file ID
+
 	;open destination
 	mov ah, 3Ch
 	mov cx, 00h
@@ -220,15 +230,21 @@ openFiles PROC
 	int 21h
 
 	jb badOpenSource	;works when cf = 1
+
+	mov destID, ax		;save file ID
+
+	mov ax, 0			;return value
 	jmp endOpenProc		;all is good
 
 badOpenSource:
 	println badSourceText
 	cmp ax, 02h
-	jne endOpenProc
+	jne errorFound
 
 	println fileNotFoundText
 
+errorFound:
+	mov ax, 1
 endOpenProc:
 	pop dx bx
 	ret
@@ -239,8 +255,35 @@ processingFile PROC
 	ret
 ENDP
 
+;Result in ax: 0 if all is good, else not
 closeFiles PROC
-	;TODO
+	push bx cx
+
+	xor cx, cx
+
+	mov ah, 3Eh
+	mov bx, sourceID
+	int 21h
+
+	jnb goodCloseOfSource		;cf = 0
+
+	println errorClosingSource
+	inc cx 			;now it is a counter of errors
+
+goodCloseOfSource:
+	mov ah, 3Eh
+	mov bx, destID
+	int 21h
+
+	jnb goodCloseOfDest			;cf = 0
+
+	println errorClosingDest
+	inc cx 			;now it is a counter of errors
+
+goodCloseOfDest:
+	mov ax, cx 		;save number of errors
+
+	pop cx bx
 	ret
 ENDP
 
