@@ -113,19 +113,6 @@ cmpWordLenWith0 MACRO textline, is0Marker
 	cmp ax, 0
 	je is0Marker
 ENDM
-
-;bx - ID файла
-resetPosInFileToStart MACRO
-	push ax bx cx dx
-
-	mov ah, 42h
-	xor al ,al 			;mov al, 0 - отсчет сначала
-	xor cx, cx
-	xor dx, dx			;на 0 байт относительно будет смещаться
-	int 21h
-
-	pop dx cx bx ax
-ENDM
 ;end macro help
 
 
@@ -232,7 +219,6 @@ ENDP
 ;Result in ax: 0 if all is good, else not
 openFiles PROC
 	push bx dx
-	;TODO
 
 	;open source
 	mov ah, 3Dh			;open source file
@@ -272,6 +258,47 @@ endOpenProc:
 	ret
 ENDP
 
+;macro help processing
+
+;bx - ID файла
+resetPosInFileToStart MACRO
+	push ax bx cx dx
+
+	mov ah, 42h
+	xor al ,al 			;mov al, 0 - отсчет сначала
+	xor cx, cx
+	xor dx, dx			;на 0 байт относительно будет смещаться
+	int 21h
+
+	pop dx cx bx ax
+ENDM
+
+readFromFileAndCheckFinish MACRO
+	call readFromFile
+	cmp ax, 0
+	je finishProcessing
+
+	mov si, offset buffer
+	mov di, offset buffer
+	mov cx, ax					;save num of symbols in buffer
+	xor dx, dx
+ENDM
+
+divCurrWordIndex MACRO
+	mov al, currWordIndex
+	xor ah, ah
+
+	div period
+	;ah - остаток, al - частное
+	mov currWordIndex, ah
+
+	cmp ah, 0
+	je movToSkip
+	jmp movToWrite
+
+ENDM
+;end macro help
+
 processingFile PROC
 	push ax bx cx dx si di
 
@@ -281,10 +308,58 @@ processingFile PROC
 	mov bx, destID
 	resetPosInFileToStart
 	
+	readFromFileAndCheckFinish
+
+loopProcessing:
+	;dx - how much good symbols in buffer
 	;TODO
-	;write spaceSymbols
-	;skip/write word
-	;loop
+writeDelimsAgain:
+	call writeDelims
+	add dx, bx
+	call checkEndBuff
+	cmp ax, 2
+	je finishProcessing
+	cmp ax, 1
+	je writeDelimsAgain
+
+	divCurrWordIndex
+
+movToWrite:
+	call writeWord
+	add dx, bx
+	call checkEndBuff
+	cmp ax, 2
+	je finishProcessing
+	cmp ax, 1
+	je movToWrite
+
+	jmp endWriteSkip
+
+movToSkip:
+	call skipWord
+	call checkEndBuff
+	cmp ax, 2
+	je finishProcessing
+	cmp ax, 1
+	je movToSkip
+
+	jmp endWriteSkip
+
+endWriteSkip:
+	push dx
+	mov dl, currWordIndex
+	inc dl
+	mov currWordIndex, dl 			;we skip/write one word
+	pop dx
+
+	;temp: close loop
+	;jmp finishProcessing
+
+	jmp loopProcessing
+
+finishProcessing:
+	mov cx, dx
+	call writeToFile
 
 	pop di si dx cx bx ax
 	ret
@@ -325,8 +400,10 @@ ENDP
 ;ds:si - offset to byte source (will change)
 ;es:di - offset to byte destination (will change)
 ;cx - max length (will change)
+;bx - num of writing symbols
 writeDelims PROC
 	push ax
+	xor bx, bx
 
 startWriteDelimsLoop:
 	mov al, ds:[si]
@@ -346,7 +423,7 @@ startWriteDelimsLoop:
 
 isDelim:
 	movsb
-	
+	inc bx
 	loop startWriteDelimsLoop
 
 isNotDelim:
@@ -357,9 +434,11 @@ ENDP
 ;ds:si - offset, where we will find (will change)
 ;es:di - offset, where word will be (will change)
 ;cx - maximum size of word (will change)
+;bx - num of writing symbols
 writeWord PROC
 	push ax 
-	
+	xor bx, bx
+
 loopParseWordWW:
 	mov al, ds:[si]
 	cmp al, spaceSymbol
@@ -378,7 +457,7 @@ loopParseWordWW:
 	je isStoppedSymbolWW
 
 	movsb
-
+	inc bx
 	loop loopParseWordWW
 
 isStoppedSymbolWW:
@@ -388,8 +467,10 @@ ENDP
 
 ;ds:si - offset, where we will find (will change)
 ;cx - maximum size of word (will change)
+;bx - num of skipped symbols
 skipWord PROC
 	push ax
+	xor bx, bx
 	
 loopParseWordSW:
 	mov al, ds:[si]
@@ -409,7 +490,7 @@ loopParseWordSW:
 	je isStoppedSymbolSW
 
 	inc si
-
+	inc bx
 	loop loopParseWordSW
 
 isStoppedSymbolSW:
@@ -458,5 +539,41 @@ goodWrite:
 	ret
 ENDP
 
+;save registers in required values
+;RES:
+;	ax = 0 - not end of buffer
+;	ax = 1 - end of buffer
+;	ax = 2 - end of processing
+checkEndBuff PROC
+	cmp cx, 0
+	jne notEndOfBuffer
+
+	cmp dx, 0
+	je skipWrite
+
+	mov cx, dx
+	call writeToFile
+
+skipWrite:
+	call readFromFile
+	cmp ax, 0
+	je endOfProcessing
+
+	mov si, offset buffer
+	mov di, offset buffer
+	mov cx, ax					;save num of symbols in buffer
+	xor dx, dx
+
+	mov ax, 1
+	ret
+
+endOfProcessing:
+	mov ax, 2
+	ret
+
+notEndOfBuffer:
+	mov ax, 0
+	ret
+ENDP
 
 end main
