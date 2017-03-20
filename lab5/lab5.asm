@@ -33,8 +33,8 @@ ENDM
 maxCMDSize equ 127
 cmd_size db ?
 cmd_text db maxCMDSize + 2 dup(0)
-sourcePath db maxCMDSize + 2 dup('$')
-destinationPath db maxCMDSize + 2 dup('$')
+sourcePath db maxCMDSize + 2 dup(0)
+destinationPath db maxCMDSize + 2 dup(0)
 
 sourceID dw 0
 destID dw 0
@@ -222,7 +222,7 @@ openFiles PROC
 
 	;open source
 	mov ah, 3Dh			;open source file
-	mov al, 31h			;readonly, block write
+	mov al, 21h			;readonly, block write, other cannot write
 	mov dx, offset sourcePath
 	mov cl, 01h
 	int 21h
@@ -288,7 +288,10 @@ divCurrWordIndex MACRO
 	mov al, currWordIndex
 	xor ah, ah
 
-	div period
+	push bx
+	mov bl, period
+	div bl
+	pop bx
 	;ah - остаток, al - частное
 	mov currWordIndex, ah
 
