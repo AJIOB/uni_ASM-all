@@ -52,6 +52,7 @@ ASCIIZendl equ 0
 startText db "Program is started", '$'
 badCMDArgsMessage db "Bad command-line arguments. I want only 2 arguments: source path and destination path", '$'
 badSourceText db "Cannot open source file", '$'
+badDestText db "Cannot open destination file", '$'
 fileNotFoundText db "File not found", '$'
 errorClosingSource db "Cannot close source file", '$'
 errorClosingDest db "Cannot close destination file", '$'
@@ -222,7 +223,7 @@ openFiles PROC
 
 	;open source
 	mov ah, 3Dh			;open source file
-	mov al, 21h			;readonly, block write, other cannot write
+	mov al, 00h			;readonly, block write, other cannot write
 	mov dx, offset sourcePath
 	mov cl, 01h
 	int 21h
@@ -233,11 +234,11 @@ openFiles PROC
 
 	;open destination
 	mov ah, 3Ch
-	mov cx, 00h
+	mov cx, 01h
 	mov dx, offset destinationPath
 	int 21h
 
-	jb badOpenSource	;works when cf = 1
+	jb badOpenDest		;works when cf = 1
 
 	mov destID, ax		;save file ID
 
@@ -246,6 +247,15 @@ openFiles PROC
 
 badOpenSource:
 	println badSourceText
+	cmp ax, 02h
+	jne errorFound
+
+	println fileNotFoundText
+
+	jmp errorFound
+
+badOpenDest:
+	println badDestText
 	cmp ax, 02h
 	jne errorFound
 
