@@ -56,9 +56,11 @@ fileNotFoundText db "File not found", '$'
 errorClosingSource db "Cannot close source file", '$'
 errorClosingDest db "Cannot close destination file", '$'
 endText db "Program is ended", '$'
+errorReadSourceText db "Error reading from source file", '$'
+errorWritingDestText db "Error writing to destination file", '$'
 
 period equ 2
-currWordIndex db 0
+currWordIndex db 1		;для того, чтобы удалялось, начиная с первого слова
 
 .code
 
@@ -414,5 +416,47 @@ isStoppedSymbolSW:
 	pop ax
 	ret
 ENDP
+
+;reads to buffer maxWordSize symbols
+;RES: ax - how much symbols we read
+readFromFile PROC
+	push bx cx dx
+
+	mov ah, 3Fh
+	mov bx, sourceID
+	mov cx, maxWordSize
+	mov dx, offset buffer
+	int 21h
+
+	jnb goodRead					;cf = 0 - we read file
+
+	println errorReadSourceText
+	mov ax, 0
+
+goodRead:
+	pop dx cx bx
+	ret
+ENDP
+
+;cx - size to write from begin of buffer
+;RES: ax - number of writed bytes
+writeToFile PROC
+	push bx cx dx
+
+	mov ah, 40h
+	mov bx, destID
+	mov dx, offset buffer
+	int 21h
+
+	jnb goodWrite					;cf = 0 - we read file
+
+	println errorWritingDestText
+	mov ax, 0
+
+goodWrite:
+	pop dx cx bx
+	ret
+ENDP
+
 
 end main
