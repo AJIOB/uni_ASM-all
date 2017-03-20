@@ -61,7 +61,7 @@ errorReadSourceText db "Error reading from source file", '$'
 errorWritingDestText db "Error writing to destination file", '$'
 
 period equ 2
-currWordIndex db 1		;для того, чтобы удалялось, начиная с первого слова
+currWordIndex db 0		;для того, чтобы удалялось, начиная с первого слова
 
 .code
 
