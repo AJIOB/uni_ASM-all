@@ -223,9 +223,9 @@ openFiles PROC
 
 	;open source
 	mov ah, 3Dh			;open source file
-	mov al, 00h			;readonly, block write, other cannot write
+	mov al, 20h			;readonly, block write, other cannot write (DOS 3.0+)
 	mov dx, offset sourcePath
-	mov cl, 01h
+	mov cl, 01h			;readOnly
 	int 21h
 
 	jb badOpenSource	;works when cf = 1
@@ -234,7 +234,7 @@ openFiles PROC
 
 	;open destination
 	mov ah, 3Ch
-	mov cx, 01h
+	mov cx, 00h			;not readOnly
 	mov dx, offset destinationPath
 	int 21h
 
