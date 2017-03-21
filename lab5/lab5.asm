@@ -61,7 +61,8 @@ errorReadSourceText db "Error reading from source file", '$'
 errorWritingDestText db "Error writing to destination file", '$'
 
 period equ 2
-currWordIndex db 0		;для того, чтобы удалялось, начиная с первого слова
+currWordStartingValue equ 0
+currWordIndex db currWordStartingValue		;для того, чтобы удалялось, начиная с первого слова
 
 .code
 
@@ -329,6 +330,13 @@ loopProcessing:
 writeDelimsAgain:
 	call writeDelims
 	add dx, bx
+	cmp ax, 0
+	je notNewLine
+
+	mov bl, currWordStartingValue
+	mov currWordIndex, bl
+
+notNewLine:
 	call checkEndBuff
 	cmp ax, 2
 	je finishProcessing
@@ -413,10 +421,13 @@ ENDP
 ;ds:si - offset to byte source (will change)
 ;es:di - offset to byte destination (will change)
 ;cx - max length (will change)
-;bx - num of writing symbols
+;RES
+;	bx - num of writing symbols
+;	ax - num of newline symbols it writed in current calling (0 or more)
 writeDelims PROC
-	push ax
+	push dx
 	xor bx, bx
+	xor dx, dx
 
 startWriteDelimsLoop:
 	mov al, ds:[si]
@@ -427,20 +438,24 @@ startWriteDelimsLoop:
 	je isDelim
 
 	cmp al, newLineSymbol
-	je isDelim
+	je isNewLineSymbol
 
 	cmp al, returnSymbol
 	je isDelim
 
 	jmp isNotDelim
 
+isNewLineSymbol:
+	inc dx
 isDelim:
 	movsb
 	inc bx
 	loop startWriteDelimsLoop
 
 isNotDelim:
-	pop ax
+	mov ax, dx
+
+	pop dx
 	ret
 ENDP
 
