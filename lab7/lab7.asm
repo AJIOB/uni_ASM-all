@@ -29,10 +29,14 @@ ENDM
 .stack 100h
 
 .data
+
 maxCMDSize equ 127
 cmd_size db ?
 cmd_text db maxCMDSize + 2 dup(0)
 folderPath db maxCMDSize + 2 dup(0)
+
+DTAsize equ 2Ch
+DTAblock db DTAsize dup(0)
 
 maxWordSize equ 50
 buffer db maxWordSize + 2 dup(0)
@@ -47,6 +51,9 @@ ASCIIZendl equ 0
 startText db "Program is started", '$'
 badCMDArgsMessage db "Bad command-line arguments. I want only 1 argument: folder path", '$'
 endText db "Program is ended", '$'
+initToRunErrorText db "Bad init to run other programs", '$'
+
+myDataEnd db '0'
 
 .code
 
@@ -71,6 +78,17 @@ main:
 	cmp ax, 0
 	jne endMain				;Какая-то ошибка - выход
 
+	call initDTA
+	call initToRun
+
+	;call findFirstFile
+	cmp ax, 0
+	jne endMain				;Какая-то ошибка - выход
+
+	call runEXE
+	cmp ax, 0
+	jne endMain				;Какая-то ошибка - выход
+	jmp endMain				;temporary
 runFile:
 	call findNextFile
 	cmp ax, 0
@@ -204,6 +222,54 @@ runEXE PROC
 	;todo
 	mov ax, 1
 
+	ret
+ENDP
+
+findFirstFile PROC
+	;todo
+	ret
+ENDP
+
+initDTA PROC
+	push ax dx
+
+	mov ah, 1Ah
+	mov dx, offset DTAblock
+	int 21h
+
+	pop dx ax
+	ret
+ENDP
+
+;	Result
+;		ax = 0 => all is good
+;		ax != 0 => we have an error
+initToRun PROC
+	push ax bx
+
+	mov ah, 4Ah
+	mov bx, program_length + 100h
+	shr bx, 4
+	add bx, 2
+	int 21h
+
+	jnc initToRunAllGood
+
+	add ax, '0'
+	mov dl, al
+	mov ah, 06h
+	int 21h
+
+	mov ax, 1
+	println initToRunErrorText
+
+	jmp initToRunEnd
+
+initToRunAllGood:
+	mov ax, 0
+
+initToRunEnd:
+	pop bx ax
 	ret
 ENDP
 
