@@ -207,4 +207,6 @@ runEXE PROC
 	ret
 ENDP
 
+program_length equ $-main
+
 end main
