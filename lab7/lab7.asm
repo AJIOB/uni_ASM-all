@@ -1,13 +1,9 @@
 ; Написать программу, последовательно запускающую программы, которые расположены в заданном каталоге. 
 
 ;-------------------MACRO-----------------
-println MACRO info
+newline MACRO
 	push ax
 	push dx
-
-	mov ah, 09h
-	mov dx, offset info
-	int 21h
 
 	;print new line
 	mov dl, 10
@@ -20,6 +16,31 @@ println MACRO info
 
 	pop dx
 	pop ax
+ENDM
+
+println MACRO info
+	push ax
+	push dx
+
+	mov ah, 09h
+	mov dx, offset info
+	int 21h
+
+	newline
+
+	pop dx
+	pop ax
+ENDM
+
+;	Input:
+;		ax - error code
+printErrorCode MACRO
+	add al, '0'
+	mov dl, al
+	mov ah, 06h
+	int 21h
+
+	newline
 ENDM
 ;-----------------end macro----------------
 
@@ -54,9 +75,10 @@ ASCIIZendl equ 0
 startText db "Program is started", '$'
 badCMDArgsMessage db "Bad command-line arguments. I want only 1 argument: folder path", '$'
 endText db "Program is ended", '$'
-initToRunErrorText db "Bad init to run other programs", '$'
-runEXEErrorText db "Error running other program", '$'
+initToRunErrorText db "Bad init to run other programs. Error code: ", '$'
+runEXEErrorText db "Error running other program. Error code: ", '$'
 
+SegmentAddress dw 0
 EPBstruct db 16h dup(0)
 
 .code
@@ -228,11 +250,11 @@ ENDP
 runEXE PROC
 	push bx dx
 
-	mov ax, cs
-	mov word ptr EPBstruct, cs							;сегментный адрес окружения для дочернего процесса - текущее окружение
+	mov ax, SegmentAddress
+	mov word ptr EPBstruct, ax							;сегментный адрес окружения для дочернего процесса - текущее окружение
 	mov word ptr EPBstruct + 02h, offset newProgramCMD			;адрес командной строки
-	mov word ptr EPBstruct + 06h, cs					;адрес первого FCB для дочернего процесса
-	mov word ptr EPBstruct + 0Ah, cs					;адрес второго FCB для дочернего процесса
+	mov word ptr EPBstruct + 06h, ax					;адрес первого FCB для дочернего процесса
+	mov word ptr EPBstruct + 0Ah, ax					;адрес второго FCB для дочернего процесса
 
 	mov ax, 4B00h				;загрузить и выполнить
 	mov dx, offset folderPath	;temporary, will be PathToRequredEXE
@@ -241,13 +263,10 @@ runEXE PROC
 	
 	jnc runEXEAllGood
 
-	add al, '0'
-	mov dl, al
-	mov ah, 06h
-	int 21h
+	printErrorCode
+	println runEXEErrorText
 
 	mov ax, 1
-	println runEXEErrorText
 
 	jmp runEXEEnd
 
@@ -279,31 +298,28 @@ ENDP
 ;		ax = 0 => all is good
 ;		ax != 0 => we have an error
 initToRun PROC
-	push ax bx
+	push bx
 
-	mov ah, 4Ah
-	mov bx, program_length + 100h
-	shr bx, 4
-	add bx, 2
+	mov ah, 48h
+	mov bx, 0FFFFh							;виделяем максимально доступный размер (на всякий случай)
 	int 21h
 
 	jnc initToRunAllGood
 
-	add ax, '0'
-	mov dl, al
-	mov ah, 06h
-	int 21h
+	println initToRunErrorText
+
+	printErrorCode
 
 	mov ax, 1
-	println initToRunErrorText
 
 	jmp initToRunEnd
 
 initToRunAllGood:
+	mov SegmentAddress, ax
 	mov ax, 0
 
 initToRunEnd:
-	pop bx ax
+	pop bx
 	ret
 ENDP
 
