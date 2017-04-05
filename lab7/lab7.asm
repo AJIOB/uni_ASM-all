@@ -41,6 +41,9 @@ DTAblock db DTAsize dup(0)
 maxWordSize equ 50
 buffer db maxWordSize + 2 dup(0)
 
+PathToRequredEXE db maxCMDSize + 15 dup(0)
+newProgramCMD db 0
+
 spaceSymbol equ ' '
 newLineSymbol equ 13
 returnSymbol equ 10
@@ -52,8 +55,9 @@ startText db "Program is started", '$'
 badCMDArgsMessage db "Bad command-line arguments. I want only 1 argument: folder path", '$'
 endText db "Program is ended", '$'
 initToRunErrorText db "Bad init to run other programs", '$'
+runEXEErrorText db "Error running other program", '$'
 
-myDataEnd db '0'
+EPBstruct db 16h dup(0)
 
 .code
 
@@ -80,7 +84,7 @@ main:
 
 	call initDTA
 	call initToRun
-
+	
 	;call findFirstFile
 	cmp ax, 0
 	jne endMain				;Какая-то ошибка - выход
@@ -218,10 +222,40 @@ findNextFile PROC
 	ret
 ENDP
 
+;	Result
+;		ax = 0 => all is good
+;		ax != 0 => we have an error
 runEXE PROC
-	;todo
-	mov ax, 1
+	push bx dx
 
+	mov ax, cs
+	mov word ptr EPBstruct, cs							;сегментный адрес окружения для дочернего процесса - текущее окружение
+	mov word ptr EPBstruct + 02h, offset newProgramCMD			;адрес командной строки
+	mov word ptr EPBstruct + 06h, cs					;адрес первого FCB для дочернего процесса
+	mov word ptr EPBstruct + 0Ah, cs					;адрес второго FCB для дочернего процесса
+
+	mov ax, 4B00h				;загрузить и выполнить
+	mov dx, offset folderPath	;temporary, will be PathToRequredEXE
+	mov bx, offset EPBstruct
+	int 21h
+	
+	jnc runEXEAllGood
+
+	add al, '0'
+	mov dl, al
+	mov ah, 06h
+	int 21h
+
+	mov ax, 1
+	println runEXEErrorText
+
+	jmp runEXEEnd
+
+runEXEAllGood:
+	mov ax, 0
+
+runEXEEnd:
+	pop dx bx
 	ret
 ENDP
 
@@ -238,7 +272,7 @@ initDTA PROC
 	int 21h
 
 	pop dx ax
-	ret
+ret
 ENDP
 
 ;	Result
@@ -272,7 +306,5 @@ initToRunEnd:
 	pop bx ax
 	ret
 ENDP
-
-program_length equ $-main
 
 end main
