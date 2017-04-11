@@ -1,43 +1,16 @@
 ;Написать резидентную программу «будильник». Время срабатывания будильника и длительность сигнала передать при запуске программы.
 
-;-------------------------macro-help------------------------------
-newline MACRO
-	push ax
-	push dx
-
-	;print new line
-	mov dl, 10
-	mov ah, 02h
-	int 21h
-
-	mov dl, 13
-	mov ah, 02h
-	int 21h
-
-	pop dx
-	pop ax
-ENDM
-
-println MACRO info
-	push ax
-	push dx
-
-	mov ah, 09h
-	mov dx, offset info
-	int 21h
-
-	newline
-
-	pop dx
-	pop ax
-ENDM
-;--------------------------end-macro------------------------------
-
 ;Параметры 1, 2, 3: время начала (часы, минуты, секунды)
 ;Параметры 4, 5, 6: длительность (часы, минуты, секунды)
 .model tiny
-
+.386		;pusha, popa
 .code
+PSPstart:
+	org 80h
+
+cmd_len db ?
+cmd_text db ?
+
 	org 100h
 
 main:
@@ -49,16 +22,117 @@ main:
 	cmp ax, 0
 	jne endMain				;Какая-то ошибка - выход
 
-	;todo: resident end
+	;todo: add calculation of stop*
+
+	mov ah, 31h
+	mov al, 0
+	mov dx, programLength/16 + 1
 
 endMain:
 	;exit
 	mov ah, 4Ch
 	int 21h
 
-;interrupt
-handler PROC
-	;todo: write
+;interrupt handler
+handler PROC far
+	pusha
+	push ds
+	push es
+
+	push es
+	push 0B800h
+	pop es
+	mov word ptr es:[0], 4020h
+	pop es
+
+	mov ah, 34h
+	int 21h
+
+	mov ah, es:[bx]
+	cmp ah, 0
+	jne endHandler
+	mov ah, es:[bx-1]
+	cmp ah, 0
+	jne endHandler
+
+	push es
+	push 0B800h
+	pop es
+	mov word ptr es:[0], 4020h
+	pop es
+
+	mov ah, 2Ch
+	int 21h
+
+	;проверка на возможность включения будильника
+	cmp ch, startHour
+	jne stopCheck
+	cmp cl, startMinutes
+	jne stopCheck
+	cmp dh, startSeconds
+	jne stopCheck
+	
+	;определяем текущее состояние будильника
+	mov dl, isAlarmOn
+	cmp dl, 0
+	jne stopCheck
+
+	;here => start alarm
+	mov si, offset wakeUpText
+	call printBanner
+	
+	jmp endHandler
+
+stopCheck:
+	;проверка на возможность выключения будильника
+	cmp ch, stopHour
+	jne endHandler
+	cmp cl, stopMinutes
+	jne endHandler
+	cmp dh, stopSeconds
+	jne endHandler
+	
+	;определяем текущее состояние будильника
+	mov dl, isAlarmOn
+	cmp dl, 1
+	jne endHandler
+
+	;here => stop alarm
+	mov si, offset offWakeUp
+	call printBanner
+
+endHandler:
+	pop es
+	pop ds
+	popa
+
+	;call previous handler
+	jmp far ptr intOldHandler
+ENDP
+
+;	Input:
+;		si: offset of printing info
+printBanner PROC
+	push es
+	push 0B800h
+	pop es
+
+	mov di, 9*allWidth*2 + (allWidth - widthOfBanner)
+
+	mov cx, 7
+loopPrintBanner:
+	push cx
+
+	mov cx, widthOfBanner
+	rep movsw
+
+	add di, 2*(allWidth - widthOfBanner)
+
+	pop cx
+	loop loopPrintBanner
+
+	pop es
+	ret
 ENDP
 
 ;data
@@ -70,27 +144,35 @@ durationHour db 0
 durationMinutes db 0
 durationSeconds db 0
 
+stopHour db 0
+stopMinutes db 0
+stopSeconds db 0
+
 badCMDArgsMessage db "Bad command-line arguments. I want only 6 arguments: start time (hour, minute, second) and duration time (hour, minute, second)", '$'
 
 isAlarmOn db 0
 
-wakeUpText 	dw 40 dup(4020h)
-			dw 40 dup(4020h)
-			dw 40 dup(4020h)
-			dw 40 dup(4020h)
-			dw 40 dup(4020h)
-			dw 40 dup(4020h)
-			dw 40 dup(4020h)
+widthOfBanner equ 40
+allWidth equ 80
+wakeUpText 	dw widthOfBanner dup(4020h)
+			dw widthOfBanner dup(4020h)
+			dw widthOfBanner dup(4020h)
+			dw widthOfBanner dup(4020h)
+			dw widthOfBanner dup(4020h)
+			dw widthOfBanner dup(4020h)
+			dw widthOfBanner dup(4020h)
 
-offWakeUp	dw 40 dup(0020h)
-			dw 40 dup(0020h)
-			dw 40 dup(0020h)
-			dw 40 dup(0020h)
-			dw 40 dup(0020h)
-			dw 40 dup(0020h)
-			dw 40 dup(0020h)
+offWakeUp	dw widthOfBanner dup(0020h)
+			dw widthOfBanner dup(0020h)
+			dw widthOfBanner dup(0020h)
+			dw widthOfBanner dup(0020h)
+			dw widthOfBanner dup(0020h)
+			dw widthOfBanner dup(0020h)
+			dw widthOfBanner dup(0020h)
 
-programLength equ $ - main
+intOldHandler dd 0
+
+
 
 ;one-time procedures
 
@@ -98,17 +180,25 @@ programLength equ $ - main
 parseCMD PROC
 	push bx cx dx si di
 
-	mov si, 80h
-	mov cl, [si]
+	cld
+	mov cl, cmd_len
 	xor ch, ch
 
-	xor ax, ax
 	xor dx, dx
-	mov si, 81h
+	mov di, offset cmd_text
+
+	;skip spaces at beginning
+	mov al, ' '
+	repne scasb	
+	inc si
+	xor ax, ax
+
+	mov si, di
 	mov di, offset startHour
 
 parseCMDloop:
 	mov dl, [si]
+	inc si
 	cmp dl, ' '
 	je SpaceIsFound
 
@@ -117,6 +207,7 @@ parseCMDloop:
 	cmp dl, '9'
 	jg badCMDArgs
 
+	sub dl, '0'
 	mov bl, 10
 	mul bl
 	add ax, dx
@@ -129,7 +220,6 @@ parseCMDloop:
 	loop parseCMDloop
 
 SpaceIsFound:
-	;todo
 	mov [di], al
 	cmp di, offset durationSeconds
 	je argsIsGood
@@ -150,7 +240,8 @@ testIsHour:
 	jmp SpaceIsFound
 
 badCMDArgs:
-	println badCMDArgsMessage
+	mov dx, offset badCMDArgsMessage
+	call println
 	mov ax, 1
 
 	jmp endproc
@@ -164,14 +255,67 @@ endproc:
 ENDP
 
 ;	Return:
+;		ax: 0 if all is good, else not 
 setHandler PROC
-	push bx
-	;todo
+	push bx dx
 
-	pop bx
+	cli
+
+	mov ah, 35h
+	mov al, 08h
+	int 21h
+
+	;save old handler
+	mov word ptr [offset intOldHandler], bx
+	mov word ptr [offset intOldHandler + 2], es
+
+	push ds			;restore old value of es
+	pop es
+
+	;set new handler
+	mov ah, 25h
+	mov dx, offset handler
+
+	sti
+
+	mov ax, 0
+
+	pop dx bx
 	ret
 ENDP
 
-.stack 100h
+newline PROC
+	push ax
+	push dx
+
+	;print new line
+	mov dl, 10
+	mov ah, 02h
+	int 21h
+
+	mov dl, 13
+	mov ah, 02h
+	int 21h
+
+	pop dx
+	pop ax
+	ret
+ENDP
+
+println PROC
+	push ax
+	push dx
+
+	mov ah, 09h
+	int 21h
+
+	call newline
+
+	pop dx
+	pop ax
+	ret
+ENDP
+
+programLength equ $ - PSPstart
 
 end main
