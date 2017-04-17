@@ -3,7 +3,6 @@
 ;Параметры 1, 2, 3: время начала (часы, минуты, секунды)
 ;Параметры 4, 5, 6: длительность (часы, минуты, секунды)
 .model tiny
-.386		;pusha, popa
 .code
 PSPstart:
 	org 80h
@@ -26,40 +25,36 @@ main:
 
 	mov ah, 31h
 	mov al, 0
-	mov dx, programLength/16 + 1
+	mov dx, (programLength - PSPstart) / 16 + 1
+	int 21h
 
 endMain:
-	;exit
-	mov ah, 4Ch
-	int 21h
+	;bad exit
+	ret
 
 ;interrupt handler
 handler PROC far
-	pusha
-	push ds
-	push es
+	pushf
+	;call previous handler
+	call cs:intOldHandler
+	push    ds
+    push    es
+	push    ax
+	push    bx
+    push    cx
+    push    dx
+	push    di
 
-	push es
-	push 0B800h
-	pop es
-	mov word ptr es:[0], 4020h
-	pop es
+	mov     ax,  0B800h
+	mov     es,  ax
 
-	mov ah, 34h
-	int 21h
-
-	mov ah, es:[bx]
-	cmp ah, 0
-	jne endHandler
-	mov ah, es:[bx-1]
-	cmp ah, 0
-	jne endHandler
-
-	push es
-	push 0B800h
-	pop es
-	mov word ptr es:[0], 4020h
-	pop es
+;	02H ¦AT¦ читать время из "постоянных" (CMOS) часов реального времени
+;   выход: CH = часы в коде BCD   (пример: CX = 1243H = 12:43)
+;          CL = минуты в коде BCD
+;          DH = секунды в коде BCD
+;   выход: CF = 1, если часы не работают
+	;mov     ah,  2
+	;int     1Ah
 
 	mov ah, 2Ch
 	int 21h
@@ -81,7 +76,7 @@ handler PROC far
 	mov si, offset wakeUpText
 	call printBanner
 	
-	jmp endHandler
+	call endHandler
 
 stopCheck:
 	;проверка на возможность выключения будильника
@@ -102,12 +97,14 @@ stopCheck:
 	call printBanner
 
 endHandler:
-	pop es
-	pop ds
-	popa
-
-	;call previous handler
-	jmp far ptr intOldHandler
+	pop     di
+	pop     dx
+	pop     cx
+	pop     bx
+	pop     ax
+	pop     es
+	pop     ds	
+	iret
 ENDP
 
 ;	Input:
@@ -172,7 +169,7 @@ offWakeUp	dw widthOfBanner dup(0020h)
 
 intOldHandler dd 0
 
-
+programLength equ $
 
 ;one-time procedures
 
@@ -190,7 +187,7 @@ parseCMD PROC
 	;skip spaces at beginning
 	mov al, ' '
 	repne scasb	
-	inc si
+	;inc si
 	xor ax, ax
 
 	mov si, di
@@ -262,7 +259,7 @@ setHandler PROC
 	cli
 
 	mov ah, 35h
-	mov al, 08h
+	mov al, 1Ch
 	int 21h
 
 	;save old handler
@@ -274,7 +271,9 @@ setHandler PROC
 
 	;set new handler
 	mov ah, 25h
+	mov al, 1Ch
 	mov dx, offset handler
+	int 21h
 
 	sti
 
@@ -315,7 +314,5 @@ println PROC
 	pop ax
 	ret
 ENDP
-
-programLength equ $ - PSPstart
 
 end main
