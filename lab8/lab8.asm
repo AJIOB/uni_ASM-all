@@ -5,11 +5,6 @@
 .model tiny
 .code
 PSPstart:
-	org 80h
-
-cmd_len db ?
-cmd_text db ?
-
 	org 100h
 
 main:
@@ -21,7 +16,7 @@ main:
 	cmp ax, 0
 	jne endMain				;Какая-то ошибка - выход
 
-	;todo: add calculation of stop*
+	call calcucateStopTime
 
 	mov ah, 31h
 	mov al, 0
@@ -34,7 +29,7 @@ endMain:
 
 ;interrupt handler
 handler PROC far
-	pushf
+	;pushf
 	;call previous handler
 	call cs:intOldHandler
 	push    ds
@@ -178,11 +173,12 @@ parseCMD PROC
 	push bx cx dx si di
 
 	cld
-	mov cl, cmd_len
+	mov bx, 80h
+	mov cl, [bx]
 	xor ch, ch
 
 	xor dx, dx
-	mov di, offset cmd_text
+	mov di, 81h
 
 	;skip spaces at beginning
 	mov al, ' '
@@ -312,6 +308,11 @@ println PROC
 
 	pop dx
 	pop ax
+	ret
+ENDP
+
+calcucateStopTime PROC
+	;todo
 	ret
 ENDP
 
