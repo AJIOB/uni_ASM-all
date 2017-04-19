@@ -28,21 +28,24 @@ isAlarmOn db 0
 
 widthOfBanner equ 40
 allWidth equ 80
-wakeUpText 	dw widthOfBanner dup(4020h)
-			dw widthOfBanner dup(4020h)
-			dw widthOfBanner dup(4020h)
-			dw widthOfBanner dup(4020h)
-			dw widthOfBanner dup(4020h)
-			dw widthOfBanner dup(4020h)
-			dw widthOfBanner dup(4020h)
+red equ 4020h
+white equ 7020h
+black equ 0020h
+wakeUpText 	dw widthOfBanner dup(red)
+			dw 4 dup(red), white, 5 dup(red), white, 2 dup(red), 2 dup(white), red, white, red, 2 dup(white), red, 3 dup(white), 4 dup(red), white, 2 dup(red), white, red, 3 dup(white), 4 dup(red)
+			dw 4 dup(red), white, 5 dup(red), 5 dup(white, red), red, white, 6 dup(red), white, 2 dup(red), 3 dup(white, red), 3 dup(red)
+			dw 5 dup(red), 3 dup(white, red), red, 3 dup(white), red, 2 dup(white), 3 dup(red), 2 dup(white), 5 dup(red), white, 2 dup(red), white, red, 3 dup(white), 4 dup(red)
+			dw 5 dup(red), 3 dup(white, red), 4 dup(red, white), 2 dup(red), white, 6 dup(red), white, 2 dup(red), 2 dup(white, red), 5 dup(red)
+			dw 6 dup(red), 2 dup(white, red), 2 dup(red), 3 dup(white, red), 2 dup(white), red, 3 dup(white), 5 dup(red), 2 dup(white), 2 dup(red), white, 6 dup(red)
+			dw widthOfBanner dup(red)
 
-offWakeUp	dw widthOfBanner dup(0020h)
-			dw widthOfBanner dup(0020h)
-			dw widthOfBanner dup(0020h)
-			dw widthOfBanner dup(0020h)
-			dw widthOfBanner dup(0020h)
-			dw widthOfBanner dup(0020h)
-			dw widthOfBanner dup(0020h)
+offWakeUp	dw widthOfBanner dup(black)
+			dw widthOfBanner dup(black)
+			dw widthOfBanner dup(black)
+			dw widthOfBanner dup(black)
+			dw widthOfBanner dup(black)
+			dw widthOfBanner dup(black)
+			dw widthOfBanner dup(black)
 
 intOldHandler dd 0
 
