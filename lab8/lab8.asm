@@ -4,128 +4,10 @@
 ;Параметры 4, 5, 6: длительность (часы, минуты, секунды)
 .model tiny
 .code
-PSPstart:
 	org 100h
 
-main:
-	call parseCMD
-	cmp ax, 0
-	jne endMain				;Какая-то ошибка - выход
-
-	call setHandler
-	cmp ax, 0
-	jne endMain				;Какая-то ошибка - выход
-
-	call calcucateStopTime
-
-	mov ah, 31h
-	mov al, 0
-	mov dx, (programLength - PSPstart) / 16 + 1
-	int 21h
-
-endMain:
-	;bad exit
-	ret
-
-;interrupt handler
-handler PROC far
-	;pushf
-	;call previous handler
-	call cs:intOldHandler
-	push    ds
-    push    es
-	push    ax
-	push    bx
-    push    cx
-    push    dx
-	push    di
-
-	mov     ax,  0B800h
-	mov     es,  ax
-
-;	02H ¦AT¦ читать время из "постоянных" (CMOS) часов реального времени
-;   выход: CH = часы в коде BCD   (пример: CX = 1243H = 12:43)
-;          CL = минуты в коде BCD
-;          DH = секунды в коде BCD
-;   выход: CF = 1, если часы не работают
-	;mov     ah,  2
-	;int     1Ah
-
-	mov ah, 2Ch
-	int 21h
-
-	;проверка на возможность включения будильника
-	cmp ch, startHour
-	jne stopCheck
-	cmp cl, startMinutes
-	jne stopCheck
-	cmp dh, startSeconds
-	jne stopCheck
-	
-	;определяем текущее состояние будильника
-	mov dl, isAlarmOn
-	cmp dl, 0
-	jne stopCheck
-
-	;here => start alarm
-	mov si, offset wakeUpText
-	call printBanner
-	
-	call endHandler
-
-stopCheck:
-	;проверка на возможность выключения будильника
-	cmp ch, stopHour
-	jne endHandler
-	cmp cl, stopMinutes
-	jne endHandler
-	cmp dh, stopSeconds
-	jne endHandler
-	
-	;определяем текущее состояние будильника
-	mov dl, isAlarmOn
-	cmp dl, 1
-	jne endHandler
-
-	;here => stop alarm
-	mov si, offset offWakeUp
-	call printBanner
-
-endHandler:
-	pop     di
-	pop     dx
-	pop     cx
-	pop     bx
-	pop     ax
-	pop     es
-	pop     ds	
-	iret
-ENDP
-
-;	Input:
-;		si: offset of printing info
-printBanner PROC
-	push es
-	push 0B800h
-	pop es
-
-	mov di, 9*allWidth*2 + (allWidth - widthOfBanner)
-
-	mov cx, 7
-loopPrintBanner:
-	push cx
-
-	mov cx, widthOfBanner
-	rep movsw
-
-	add di, 2*(allWidth - widthOfBanner)
-
-	pop cx
-	loop loopPrintBanner
-
-	pop es
-	ret
-ENDP
+start:
+	jmp main
 
 ;data
 startHour db 0
@@ -164,7 +46,93 @@ offWakeUp	dw widthOfBanner dup(0020h)
 
 intOldHandler dd 0
 
-programLength equ $
+;interrupt handler
+handler PROC
+	pushf
+	;call previous handler
+	call cs:intOldHandler
+	push    ds
+    push    es
+	push    ax
+	push    bx
+    push    cx
+    push    dx
+	push    di
+
+	push cs
+	pop ds
+
+;	02H ¦AT¦ читать время из "постоянных" (CMOS) часов реального времени
+;   выход: CH = часы в коде BCD   (пример: CX = 1243H = 12:43)
+;          CL = минуты в коде BCD
+;          DH = секунды в коде BCD
+;   выход: CF = 1, если часы не работают
+	mov     ah,  2
+	int     1Ah
+
+	;mov ah, 2Ch
+	;int 21h
+
+	;проверка на возможность включения будильника
+	cmp ch, startHour
+	jne stopCheck
+	cmp cl, startMinutes
+	jne stopCheck
+	cmp dh, startSeconds
+	jne stopCheck
+	
+	;определяем текущее состояние будильника
+	mov dl, isAlarmOn
+	cmp dl, 0
+	jne stopCheck
+
+	;here => start alarm
+	mov si, offset wakeUpText
+	call printBanner
+	mov dl, 1
+	mov isAlarmOn, dl
+
+	jmp endHandler
+
+stopCheck:
+	
+
+endHandler:
+
+	pop     di
+	pop     dx
+	pop     cx
+	pop     bx
+	pop     ax
+	pop     es
+	pop     ds	
+	iret
+ENDP
+
+;	Input:
+;		si: offset of printing info
+printBanner PROC
+	push es
+	push 0B800h
+	pop es
+
+	mov cx, 7
+loopPrintBanner:
+	push cx
+
+	mov cx, widthOfBanner
+	rep movsw
+
+	add di, 2*(allWidth - widthOfBanner)
+
+	pop cx
+	loop loopPrintBanner
+
+	pop es
+	ret
+ENDP
+
+programLength:
 
 ;one-time procedures
 
@@ -213,7 +181,7 @@ parseCMDloop:
 	loop parseCMDloop
 
 SpaceIsFound:
-	mov [di], al
+	mov byte ptr es:[di], al
 	cmp di, offset durationSeconds
 	je argsIsGood
 
@@ -316,4 +284,48 @@ calcucateStopTime PROC
 	ret
 ENDP
 
-end main
+convertToBCD PROC
+	mov cx, 6
+	mov bl, 10
+	mov si, offset startHour
+convertLoop:
+	xor ah, ah
+	mov al, [si]
+	div bl
+
+	;частное - al, остаток - ah
+	mov dl, al
+	;сдвиг влево на 4
+	shl dl, 4
+	add dl, ah
+	mov [si], dl
+
+	inc si
+	loop convertLoop
+	
+	ret
+ENDP
+
+main:
+	call parseCMD
+	cmp ax, 0
+	jne endMain				;Какая-то ошибка - выход
+
+	call setHandler
+	cmp ax, 0
+	jne endMain				;Какая-то ошибка - выход
+
+	call calcucateStopTime
+
+	call convertToBCD
+
+	mov ah, 31h
+	mov al, 0
+	mov dx, (programLength - start + 100h) / 16 + 1
+	int 21h
+
+endMain:
+	;bad exit
+	ret
+
+end start
