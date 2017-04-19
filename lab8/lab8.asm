@@ -95,10 +95,24 @@ handler PROC
 	jmp endHandler
 
 stopCheck:
-	
+	;проверка на возможность выключения будильника
+	cmp ch, stopHour
+	jne endHandler
+	cmp cl, stopMinutes
+	jne endHandler
+	cmp dh, stopSeconds
+	jne endHandler
+ 	
+	;определяем текущее состояние будильника
+	mov dl, isAlarmOn
+	cmp dl, 1
+	jne endHandler
+
+	;here => stop alarm
+	mov si, offset offWakeUp
+	call printBanner
 
 endHandler:
-
 	pop     di
 	pop     dx
 	pop     cx
@@ -115,6 +129,8 @@ printBanner PROC
 	push es
 	push 0B800h
 	pop es
+
+	mov di, 9*allWidth*2 + (allWidth - widthOfBanner)
 
 	mov cx, 7
 loopPrintBanner:
@@ -280,12 +296,38 @@ println PROC
 ENDP
 
 calcucateStopTime PROC
-	;todo
+	;seconds
+	xor ah, ah
+	mov al, startSeconds
+	add al, durationSeconds
+	mov bl, 60			;max seconds value + 1
+	div bl
+	;частное - al, остаток - ah
+	mov stopSeconds, ah
+
+	;minutes (in al may be 1)
+	xor ah, ah
+	add al, startMinutes
+	add al, durationMinutes
+	mov bl, 60			;max minutes value + 1
+	div bl
+	;частное - al, остаток - ah
+	mov stopMinutes, ah
+
+	;hours (in AL may be 1)
+	xor ah, ah
+	add al, startHour
+	add al, durationHour
+	mov bl, 24			;max minutes value + 1
+	div bl
+	;частное - al, остаток - ah
+	mov stopHour, ah
+
 	ret
 ENDP
 
 convertToBCD PROC
-	mov cx, 6
+	mov cx, 9
 	mov bl, 10
 	mov si, offset startHour
 convertLoop:
@@ -311,13 +353,13 @@ main:
 	cmp ax, 0
 	jne endMain				;Какая-то ошибка - выход
 
-	call setHandler
-	cmp ax, 0
-	jne endMain				;Какая-то ошибка - выход
-
 	call calcucateStopTime
 
 	call convertToBCD
+
+	call setHandler
+	cmp ax, 0
+	jne endMain				;Какая-то ошибка - выход
 
 	mov ah, 31h
 	mov al, 0
