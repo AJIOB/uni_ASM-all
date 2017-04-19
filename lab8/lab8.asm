@@ -114,6 +114,8 @@ stopCheck:
 	;here => stop alarm
 	mov si, offset offWakeUp
 	call printBanner
+	mov dl, 0
+	mov isAlarmOn, dl
 
 endHandler:
 	pop     di
