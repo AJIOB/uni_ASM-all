@@ -274,11 +274,6 @@ isStoppedSymbol:
 	ret
 ENDP
 
-findNextFile PROC
-	;todo
-	ret
-ENDP
-
 ;	Result
 ;		ax = 0 => all is good
 ;		ax != 0 => we have an error
@@ -307,16 +302,55 @@ runEXEEnd:
 	ret
 ENDP
 
-findFirstFile PROC
-	;install DTA
+installDTA PROC
 	mov ah,1Ah
     mov dx, offset DTAblock
     int 21h
+    ret
+ENDP
+
+;Result in ax: 0 if all is good, else not
+findFirstFile PROC
+	call installDTA
 
     ;fild first file
     mov ah,4Eh
     xor cx,cx               		; атрибут файла для сравнения 
-    mov dx, offset folderPath       ; адрес строки с именем файла
+    mov dx, offset findSuffix       ; адрес строки с именем файла
+    int 21h
+
+	jnc findFirstFileAllGood
+
+	mov ax, 1
+
+	jmp findFirstFileEnd
+
+findFirstFileAllGood:
+	mov ax, 0
+
+findFirstFileEnd:
+
+	ret
+ENDP
+
+;Result in ax: 0 if all is good, else not
+findNextFile PROC
+	call installDTA
+
+	mov ah,4Fh
+    mov dx, offset DTAblock       ; адрес строки с именем файла
+    int 21h
+
+	jnc findNextFileAllGood
+
+	mov ax, 1
+
+	jmp findNextFileEnd
+
+findNextFileAllGood:
+	mov ax, 0
+
+findNextFileEnd:
 
 	ret
 ENDP
