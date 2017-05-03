@@ -46,16 +46,17 @@ ENDM
 
 ;Параметр 1: путь к требуемой папке
 .model small
-
-.stack 100h
+.286
 
 .data
 
-maxCMDSize equ 127
 cmd_size db ?
+
+maxCMDSize equ 127
 cmd_text db maxCMDSize + 2 dup(0)
 folderPath db maxCMDSize + 2 dup(0)
 
+;Disk Transfer Area
 DTAsize equ 2Ch
 DTAblock db DTAsize dup(0)
 
@@ -77,13 +78,42 @@ badCMDArgsMessage db "Bad command-line arguments. I want only 1 argument: folder
 endText db "Program is ended", '$'
 initToRunErrorText db "Bad init to run other programs. Error code: ", '$'
 runEXEErrorText db "Error running other program. Error code: ", '$'
+badFolderErrorText db "Error forder to programs", '$'
 
-SegmentAddress dw 0
-EPBstruct db 16h dup(0)
+;EXEC Parameter Block
+EPBstruct 	dw 0
+			dw offset line,0
+			dw 005Ch,0,006Ch,0		;Адреса FCB (File control block) программы
+line db 125
+	 db " /?"
+line_text db 122 dup(?)
 
+EPBlen dw $ - EPBstruct
+
+findSuffix db "*.exe", 0
+
+DataSize=$-cmd_size
+
+.stack 100h
 .code
 
 main:
+	;reallocating memory
+	mov ah, 4Ah
+	mov bx, ((CodeSize/16)+1)+((DataSize/16)+1)+32	;требуемый размер в параграфах
+	int 21h
+
+	jnc initToRunAllGood
+
+	println initToRunErrorText
+
+	printErrorCode
+
+	mov ax, 1
+
+	jmp endMain
+
+initToRunAllGood:
 	mov ax, @data
 	mov es, ax
 
@@ -103,18 +133,21 @@ main:
 	call parseCMD
 	cmp ax, 0
 	jne endMain				;Какая-то ошибка - выход
-
-	call initDTA
-	call initToRun
 	
-	;call findFirstFile
+	;change directory ot required
+	mov ah, 3Bh
+    mov dx, offset folderPath
+    int 21h
+    jc badWay
+
+	call findFirstFile
 	cmp ax, 0
 	jne endMain				;Какая-то ошибка - выход
 
 	call runEXE
 	cmp ax, 0
 	jne endMain				;Какая-то ошибка - выход
-	jmp endMain				;temporary
+
 runFile:
 	call findNextFile
 	cmp ax, 0
@@ -126,6 +159,8 @@ runFile:
 
 	jmp runFile
 
+badWay:
+	println badFolderErrorText
 endMain:
 	;exit
 	println endText
@@ -250,21 +285,15 @@ ENDP
 runEXE PROC
 	push bx dx
 
-	mov ax, SegmentAddress
-	mov word ptr EPBstruct, ax							;сегментный адрес окружения для дочернего процесса - текущее окружение
-	mov word ptr EPBstruct + 02h, offset newProgramCMD			;адрес командной строки
-	mov word ptr EPBstruct + 06h, ax					;адрес первого FCB для дочернего процесса
-	mov word ptr EPBstruct + 0Ah, ax					;адрес второго FCB для дочернего процесса
-
 	mov ax, 4B00h				;загрузить и выполнить
-	mov dx, offset folderPath	;temporary, will be PathToRequredEXE
 	mov bx, offset EPBstruct
+	mov dx, offset DTAblock + 1Eh	;получаем имя файла из DTA
 	int 21h
 	
 	jnc runEXEAllGood
 
-	printErrorCode
 	println runEXEErrorText
+	printErrorCode
 
 	mov ax, 1
 
@@ -279,48 +308,19 @@ runEXEEnd:
 ENDP
 
 findFirstFile PROC
-	;todo
+	;install DTA
+	mov ah,1Ah
+    mov dx, offset DTAblock
+    int 21h
+
+    ;fild first file
+    mov ah,4Eh
+    xor cx,cx               		; атрибут файла для сравнения 
+    mov dx, offset folderPath       ; адрес строки с именем файла
+
 	ret
 ENDP
 
-initDTA PROC
-	push ax dx
-
-	mov ah, 1Ah
-	mov dx, offset DTAblock
-	int 21h
-
-	pop dx ax
-ret
-ENDP
-
-;	Result
-;		ax = 0 => all is good
-;		ax != 0 => we have an error
-initToRun PROC
-	push bx
-
-	mov ah, 48h
-	mov bx, 0FFFFh							;виделяем максимально доступный размер (на всякий случай)
-	int 21h
-
-	jnc initToRunAllGood
-
-	println initToRunErrorText
-
-	printErrorCode
-
-	mov ax, 1
-
-	jmp initToRunEnd
-
-initToRunAllGood:
-	mov SegmentAddress, ax
-	mov ax, 0
-
-initToRunEnd:
-	pop bx
-	ret
-ENDP
+CodeSize = $ - main
 
 end main
