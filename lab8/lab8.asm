@@ -163,7 +163,7 @@ parseCMD PROC
 
 	cld
 	mov bx, 80h
-	mov cl, [bx]
+	mov cl, cs:[bx]
 	xor ch, ch
 
 	xor dx, dx
